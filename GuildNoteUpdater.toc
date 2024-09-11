@@ -1,7 +1,7 @@
 ## Interface: 110002
 ## Title: Guild Note Updater
 ## Notes: Updates guild note with item level and spec each time you log in.
-## Author: Bigsquishy
+## Author: Nate8282
 ## Version: 1.0
 ## SavedVariables: GuildNoteUpdaterSettings
 
