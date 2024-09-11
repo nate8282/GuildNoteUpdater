@@ -1,0 +1,9 @@
+## Interface: 110002
+## Title: Guild Note Updater
+## Notes: Updates guild note with item level and spec each time you log in.
+## Author: Bigsquishy
+## Version: 1.0
+## SavedVariables: GuildNoteUpdaterSettings
+
+GuildNoteUpdater.lua
+GuildNoteUpdater.xml

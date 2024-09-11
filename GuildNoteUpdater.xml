@@ -1,0 +1,17 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/">
+    <Frame name="GuildNoteUpdaterUI" hidden="true">
+        <Size>
+            <AbsDimension x="300" y="100"/>
+        </Size>
+        <Anchors>
+            <Anchor point="CENTER"/>
+        </Anchors>
+        <Frames>
+            <CheckButton name="$parentEnableButton" inherits="UICheckButtonTemplate">
+                <Anchors>
+                    <Anchor point="TOPLEFT" relativePoint="TOPLEFT" x="20" y="-30"/>
+                </Anchors>
+            </CheckButton>
+        </Frames>
+    </Frame>
+</Ui>
