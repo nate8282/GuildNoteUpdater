@@ -24,4 +24,4 @@ Thank you for contributing to Guild Note Updater!
 
 ## Issues
 - When opening an issue, provide as much detail as possible.
-- For bug reports, include steps to reproduce, what you expected, and what actually happened.
+- For bug reports, include steps to reproduce, what you expected, and what actually happened. 
