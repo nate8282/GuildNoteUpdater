@@ -20,4 +20,4 @@ Guild Note Updater is a World of Warcraft addon that automatically updates the g
 - Restart WoW or type `/reload` to load the addon.
 
 ## Contributing
-If you would like to suggest changes or report bugs, feel free to open an issue or submit a pull request. Please ensure that your contributions maintain the project's standards.
+If you would like to suggest changes or report bugs, feel free to open an issue or submit a pull request. Please ensure that your contributions maintain the project's standards. 
