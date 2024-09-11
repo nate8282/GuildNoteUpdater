@@ -1,9 +1,8 @@
 ## Interface: 110002
 ## Title: Guild Note Updater
-## Notes: Updates guild note with item level and spec each time you log in.
+## Notes: Updates guild note with item level, spec, profession and main or alt info each time you log in.
 ## Author: Nate8282
-## Version: 1.0
+## Version: 1.1
 ## SavedVariables: GuildNoteUpdaterSettings
 
 GuildNoteUpdater.lua
-GuildNoteUpdater.xml
