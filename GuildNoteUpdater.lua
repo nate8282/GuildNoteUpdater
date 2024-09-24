@@ -51,7 +51,7 @@ function GuildNoteUpdater:UpdateGuildNote(checkForChanges)
     end
     if mainOrAlt then table.insert(noteParts, mainOrAlt) end
 
-    local newNote = table.concat(noteParts, "-")
+    local newNote = table.concat(noteParts, " ")
 
     -- Ensure the new note fits the 31-character limit
     if #newNote > 31 then
@@ -59,7 +59,7 @@ function GuildNoteUpdater:UpdateGuildNote(checkForChanges)
         profession1 = string.sub(profession1, 1, 2)
         profession2 = string.sub(profession2, 1, 2)
         spec = string.sub(spec, 1, 5)
-        newNote = table.concat({ math.floor(itemLevel), spec, profession1, profession2, mainOrAlt or "" }, "-")
+        newNote = table.concat({ math.floor(itemLevel), spec, profession1, profession2, mainOrAlt or "" }, " ")
     end
 
     -- Get the player's guild index
@@ -353,7 +353,7 @@ function GuildNoteUpdater:UpdateGuildNote(checkForChanges)
     if mainOrAlt then table.insert(noteParts, mainOrAlt) end
 
     -- Combine all note parts into the final guild note text
-    local newNote = table.concat(noteParts, "-")
+    local newNote = table.concat(noteParts, " ")
 
     -- Ensure the new note fits the 31-character limit
     if #newNote > 31 then
@@ -363,7 +363,7 @@ function GuildNoteUpdater:UpdateGuildNote(checkForChanges)
             profession2 = string.sub(profession2 or "", 1, 2)
         end
         spec = string.sub(spec or "", 1, 5)
-        newNote = table.concat({ math.floor(itemLevel), spec, profession1 or "", profession2 or "", mainOrAlt or "" }, "-")
+        newNote = table.concat({ math.floor(itemLevel), spec, profession1 or "", profession2 or "", mainOrAlt or "" }, " ")
     end
 
     -- Get the player's guild index
