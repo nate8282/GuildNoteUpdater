@@ -4,13 +4,20 @@ GuildNoteUpdater = CreateFrame("Frame")  -- Create the frame that will handle ev
 GuildNoteUpdater.hasUpdated = false  -- Flag to prevent double updates
 GuildNoteUpdater.previousItemLevel = nil  -- Store the previous item level
 GuildNoteUpdater.previousNote = ""  -- Store the previous note to avoid redundant updates
+GuildNoteUpdater.debugEnabled = false  -- Debug flag to control printing
 
+-- Helper function for debug printing
+function GuildNoteUpdater:DebugPrint(message)
+    if self.debugEnabled then
+        print(message)
+    end
+end
 -- Update the guild note with item level, spec, professions, and main/alt status
 function GuildNoteUpdater:UpdateGuildNote(checkForChanges)
     local characterName = UnitName("player")
 
     if not self.enabledCharacters[characterName] then
-        print("GuildNoteUpdater: Guild Note auto update disabled for this character.")
+        self:DebugPrint("GuildNoteUpdater: Guild Note auto update disabled for this character.")
         return
     end
 
@@ -70,14 +77,14 @@ function GuildNoteUpdater:UpdateGuildNote(checkForChanges)
 
         -- Always update the note regardless of changes
         if self.previousNote ~= newNote then
-            print("GuildNoteUpdater: Updating guild note to:", newNote)
+            self:DebugPrint("GuildNoteUpdater: Updating guild note to: " .. newNote)
             GuildRosterSetPublicNote(guildIndex, newNote)
             -- Store the current item level and note to track future changes
             self.previousItemLevel = math.floor(itemLevel)
             self.previousNote = newNote
         end
     else
-        print("GuildNoteUpdater: Unable to find guild index for player.")
+        self:DebugPrint("GuildNoteUpdater: Unable to find guild index for player.")
     end
 end
 
@@ -121,6 +128,20 @@ function GuildNoteUpdater:CreateUI()
         GuildNoteUpdaterSettings.enableProfessions[UnitName("player")] = isChecked  -- Ensure the settings are saved as a boolean
         GuildNoteUpdater:UpdateGuildNote()  -- Immediately update after change
     end)
+	
+-- Add the "Enable Debug" checkbox
+	local enableDebugButton = CreateFrame("CheckButton", nil, frame, "UICheckButtonTemplate")
+	enableDebugButton:SetPoint("TOPRIGHT", -140, -30)  -- Position in the upper right corner
+	enableDebugButton.text:SetFontObject("GameFontNormal")
+	enableDebugButton.text:SetText("Enable Debug")
+	enableDebugButton:SetChecked(self.debugEnabled)
+	
+	enableDebugButton:SetScript("OnClick", function(self)
+    GuildNoteUpdater.debugEnabled = self:GetChecked()
+    print("Debug mode is now", GuildNoteUpdater.debugEnabled and "enabled" or "disabled")
+	-- Save the new debug state to the settings
+    GuildNoteUpdaterSettings.debugEnabled = GuildNoteUpdater.debugEnabled
+end)
 
     -- Add a label for "Update spec"
     local specUpdateLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
@@ -286,8 +307,18 @@ function GuildNoteUpdater:CreateUI()
     UIDropDownMenu_SetText(mainAltDropdown, self.mainOrAlt[UnitName("player")] or "Main")
 
     -- Create a slash command to toggle the UI
-    SLASH_GUILDNOTEUPDATER1 = "/guildupdate"
+    SLASH_GUILDNOTEUPDATER1 = "/gnu"
     SlashCmdList["GUILDNOTEUPDATER"] = function()
+        if frame:IsShown() then
+            frame:Hide()
+        else
+            frame:Show()
+        end
+    end
+
+    -- Restore the /guildupdate command
+    SLASH_GUILDUPDATE1 = "/guildupdate"
+    SlashCmdList["GUILDUPDATE"] = function()
         if frame:IsShown() then
             frame:Hide()
         else
@@ -301,7 +332,7 @@ function GuildNoteUpdater:UpdateGuildNote(checkForChanges)
     local characterName = UnitName("player")
 
     if not self.enabledCharacters[characterName] then
-        print("GuildNoteUpdater: Guild Note auto update disabled for this character.")
+        self:DebugPrint("GuildNoteUpdater: Guild Note auto update disabled for this character.")
         return
     end
 
@@ -325,7 +356,7 @@ function GuildNoteUpdater:UpdateGuildNote(checkForChanges)
     end
 
     -- Add debug output for profession checkbox state
-    --print("GuildNoteUpdater: Enable professions is", self.enableProfessions[characterName])
+    --self:DebugPrint("GuildNoteUpdater: Enable professions is" .. self.enableProfessions[characterName])
 
     -- Build the new guild note text
     local noteParts = { math.floor(itemLevel) }
@@ -339,15 +370,15 @@ function GuildNoteUpdater:UpdateGuildNote(checkForChanges)
         local profession2 = self:GetProfessionAbbreviation(prof2 and select(1, GetProfessionInfo(prof2)) or nil)
 
         if profession1 then
-            --print("GuildNoteUpdater: Including profession1:", profession1)
+            self:DebugPrint("GuildNoteUpdater: Including profession1:" .. profession1)
             table.insert(noteParts, profession1)
         end
         if profession2 then
-            --print("GuildNoteUpdater: Including profession2:", profession2)
+            self:DebugPrint("GuildNoteUpdater: Including profession2:" .. profession2)
             table.insert(noteParts, profession2)
         end
     else
-        print("GuildNoteUpdater: Professions are disabled for this character.")
+        self:DebugPrint("GuildNoteUpdater: Professions are disabled for this character.")
     end
 
     if mainOrAlt then table.insert(noteParts, mainOrAlt) end
@@ -374,14 +405,14 @@ function GuildNoteUpdater:UpdateGuildNote(checkForChanges)
 
         -- Always update the note if it's different
         if self.previousNote ~= newNote then
-            print("GuildNoteUpdater: Updating guild note to:", newNote)
+			self:DebugPrint("GuildNoteUpdater: Updating guild note to: " .. newNote)
             GuildRosterSetPublicNote(guildIndex, newNote)
             -- Store the current item level and note to track future changes
             self.previousItemLevel = math.floor(itemLevel)
             self.previousNote = newNote
         end
     else
-        print("GuildNoteUpdater: Unable to find guild index for player.")
+        self:DebugPrint("GuildNoteUpdater: Unable to find guild index for player.")
     end
 end
 
@@ -447,7 +478,7 @@ function GuildNoteUpdater:OnEvent(event, arg1)
         end
     elseif event == "PLAYER_EQUIPMENT_CHANGED" or event == "ACTIVE_TALENT_GROUP_CHANGED" then
         -- Delay the guild note update by 1 second to ensure the item level is refreshed
-        print("Detected equipment or spec change!")  -- Debugging print
+		self:DebugPrint("Detected equipment or spec change!")  -- Debugging print
         C_Timer.After(1, function()
             if IsInGuild() then
                 self:UpdateGuildNote(true)  -- true indicates that we want to check for item level or spec changes
@@ -466,7 +497,9 @@ function GuildNoteUpdater:InitializeSettings()
             selectedSpec = {},
             itemLevelType = {},  -- Store the item level type selection (Overall/Equipped)
             mainOrAlt = {},
-            enableProfessions = {}  -- Ensure professions are included in the saved settings
+            enableProfessions = {},  -- Ensure professions are included in the saved settings
+			debugEnabled = false  -- Default to debug mode off
+			
         }
     end
 
@@ -477,6 +510,7 @@ function GuildNoteUpdater:InitializeSettings()
     self.itemLevelType = GuildNoteUpdaterSettings.itemLevelType or {}
     self.mainOrAlt = GuildNoteUpdaterSettings.mainOrAlt or {}
     self.enableProfessions = GuildNoteUpdaterSettings.enableProfessions or {}
+	self.debugEnabled = GuildNoteUpdaterSettings.debugEnabled or false  -- Load debug mode state
 
     -- Set default for the current character if not yet set
     local characterName = UnitName("player")
