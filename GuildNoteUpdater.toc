@@ -1,4 +1,4 @@
-## Interface: 110002
+## Interface: 120000
 ## Title: Guild Note Updater
 ## Notes: Updates guild note with item level, spec, profession and main or alt info each time you log in.
 ## Author: Nate8282
