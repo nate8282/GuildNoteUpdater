@@ -91,7 +91,7 @@ end
 -- Create the UI for enabling/disabling the addon and managing spec options
 function GuildNoteUpdater:CreateUI()
     local frame = CreateFrame("Frame", "GuildNoteUpdaterUI", UIParent, "BasicFrameTemplateWithInset")
-    frame:SetSize(500, 260)  -- Adjust height to accommodate new elements
+    frame:SetSize(500, 297)  -- Adjust height to accommodate new elements
     frame:SetPoint("CENTER")
     frame:Hide()
 
@@ -141,7 +141,7 @@ function GuildNoteUpdater:CreateUI()
     print("Debug mode is now", GuildNoteUpdater.debugEnabled and "enabled" or "disabled")
 	-- Save the new debug state to the settings
     GuildNoteUpdaterSettings.debugEnabled = GuildNoteUpdater.debugEnabled
-end)
+    end)
 
     -- Add a label for "Update spec"
     local specUpdateLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
@@ -288,7 +288,16 @@ end)
 
     -- Initialize the main/alt dropdown
     local function InitializeMainAltDropdown(self, level)
-        local info = UIDropDownMenu_CreateInfo()
+        local info = UIDropDownMenu_CreateInfo()                                       
+        
+        -- Fix for feature request #2: https://github.com/nate8282/GuildNoteUpdater/issues/2
+        -- allow the user to forcibly select none to not show main or alt prefixes.
+        info.text = "<None>"                                                           
+        info.value = "<None>"                                                          
+        info.func = OnMainAltSelect                                                    
+        info.checked = (GuildNoteUpdater.mainOrAlt[UnitName("player")] == "<None>")    
+        UIDropDownMenu_AddButton(info, level)                                          
+                                                                                       
         info.text = "Main"
         info.value = "Main"
         info.func = OnMainAltSelect
@@ -305,6 +314,32 @@ end)
     UIDropDownMenu_Initialize(mainAltDropdown, InitializeMainAltDropdown)
     UIDropDownMenu_SetWidth(mainAltDropdown, 120)
     UIDropDownMenu_SetText(mainAltDropdown, self.mainOrAlt[UnitName("player")] or "Main")
+
+
+    -- Fix for feature request #7: https://github.com/nate8282/GuildNoteUpdater/issues/7
+    -- Add a label for "Note Prefix"                                                   
+    local notePrefixLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")   
+    notePrefixLabel:SetPoint("TOPLEFT", 27, -257)                                      
+    notePrefixLabel:SetText("Note Prefix")                                             
+    
+    -- Create the dropdown menu
+    local notePrefixText = CreateFrame("EditBox", nil, frame, "InputBoxTemplate")      
+    notePrefixText:SetSize(130, 20)
+    notePrefixText:SetPoint("LEFT", notePrefixLabel, "RIGHT", 62, 0)
+    notePrefixText:SetAutoFocus(false)
+    notePrefixText:SetMaxLetters(12)
+    notePrefixText:SetText(strtrim(GuildNoteUpdater.notePrefix[UnitName("player")]))
+
+    -- Action the changes the user makes.
+    notePrefixText:SetScript("OnEnterPressed", function(self)
+        GuildNoteUpdater.notePrefix[UnitName("player")] = strtrim(notePrefixText:GetText()) 
+        -- UIDropDownMenu_SetText(mainAltDropdown, self.value)
+        GuildNoteUpdaterSettings.notePrefix = GuildNoteUpdater.notePrefix
+        -- Immediately update the guild note when main/alt is changed
+        GuildNoteUpdater:UpdateGuildNote(true)
+    end)    
+
+
 
     -- Create a slash command to toggle the UI
     SLASH_GUILDNOTEUPDATER1 = "/gnu"
@@ -351,15 +386,24 @@ function GuildNoteUpdater:UpdateGuildNote(checkForChanges)
 
     -- Get the main/alt status
     local mainOrAlt = self.mainOrAlt[characterName]
-    if mainOrAlt == "Select Option" then
+    if mainOrAlt == "Select Option" or mainOrAlt == "<None>" then       --Tweaked condition to support Issue #2                                                                               --Karp changed for Issue #2
         mainOrAlt = nil  -- Omit if main/alt isn't selected
     end
 
     -- Add debug output for profession checkbox state
-    --self:DebugPrint("GuildNoteUpdater: Enable professions is" .. self.enableProfessions[characterName])
+    --print("GuildNoteUpdater: Enable professions is", self.enableProfessions[characterName])
+
+    -- Feature #7: Put the prefix text, if provided, at the start of our variable.
+    notePrefix = self.notePrefix[characterName]
 
     -- Build the new guild note text
-    local noteParts = { math.floor(itemLevel) }
+    -- Modified for feature #7 to fill the noteparts list with the prefix
+    local noteParts = { notePrefix }                                                                                                                
+    if strtrim(notePrefix) ~= "" then                                                                                                                  
+        table.insert(noteParts, "-")                                                                                                                            
+    end                                                                                                                                                    
+    
+    table.insert(noteParts, math.floor(itemLevel))                                                                                                  
 
     if spec then table.insert(noteParts, spec) end
 
@@ -384,7 +428,7 @@ function GuildNoteUpdater:UpdateGuildNote(checkForChanges)
     if mainOrAlt then table.insert(noteParts, mainOrAlt) end
 
     -- Combine all note parts into the final guild note text
-    local newNote = table.concat(noteParts, " ")
+    local newNote = strtrim(table.concat(noteParts, " "))        --modified as part of feature #7 to trim the strings before concatenating them                                                                          
 
     -- Ensure the new note fits the 31-character limit
     if #newNote > 31 then
@@ -393,8 +437,9 @@ function GuildNoteUpdater:UpdateGuildNote(checkForChanges)
             profession1 = string.sub(profession1 or "", 1, 2)
             profession2 = string.sub(profession2 or "", 1, 2)
         end
-        spec = string.sub(spec or "", 1, 5)
-        newNote = table.concat({ math.floor(itemLevel), spec, profession1 or "", profession2 or "", mainOrAlt or "" }, " ")
+        --Feature #7 -- modified the next two lines to accomdate the new elements.
+        spec = string.sub(spec or "", 1, 4)                                                                                                          
+        newNote = strtrim(table.concat({notePrefix, math.floor(itemLevel), spec, profession1 or "", profession2 or "", mainOrAlt or "" }, " "))      
     end
 
     -- Get the player's guild index
@@ -498,8 +543,8 @@ function GuildNoteUpdater:InitializeSettings()
             itemLevelType = {},  -- Store the item level type selection (Overall/Equipped)
             mainOrAlt = {},
             enableProfessions = {},  -- Ensure professions are included in the saved settings
-			debugEnabled = false  -- Default to debug mode off
-			
+            debugEnabled = false,  -- Default to debug mode off
+            notePrefix = {}       -- Feature #7: New var to hold the "prefix" to put into guild note.
         }
     end
 
@@ -510,7 +555,8 @@ function GuildNoteUpdater:InitializeSettings()
     self.itemLevelType = GuildNoteUpdaterSettings.itemLevelType or {}
     self.mainOrAlt = GuildNoteUpdaterSettings.mainOrAlt or {}
     self.enableProfessions = GuildNoteUpdaterSettings.enableProfessions or {}
-	self.debugEnabled = GuildNoteUpdaterSettings.debugEnabled or false  -- Load debug mode state
+    self.debugEnabled = GuildNoteUpdaterSettings.debugEnabled or false  -- Load debug mode state    
+    self.notePrefix = GuildNoteUpdaterSettings.notePrefix or {}         -- Feature #7: New var to hold the "prefix" to put into guild note.
 
     -- Set default for the current character if not yet set
     local characterName = UnitName("player")
