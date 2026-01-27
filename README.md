@@ -7,6 +7,9 @@ Guild Note Updater is a World of Warcraft addon that automatically updates the g
 - Supports displaying both equipped and overall item levels.
 - Displays character's main and alt status.
 - Option to show professions (with an option to enable or disable in the UI).
+- Custom note prefix support.
+- Cross-realm character support (settings are stored per Name-Realm).
+- Movable settings UI.
 
 ## How to Use
 1. Install the addon by copying it into your WoW `Interface/AddOns` folder.
