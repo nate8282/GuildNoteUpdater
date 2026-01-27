@@ -37,7 +37,7 @@ end
 function GuildNoteUpdater:GetSpec(characterKey)
     local specIndex = GetSpecialization()
     if not specIndex then return nil end
-    
+
     if self.specUpdateMode[characterKey] == "Manually" then
         if not self.selectedSpec[characterKey] or self.selectedSpec[characterKey] == "Select Spec" then
             self.selectedSpec[characterKey] = select(2, GetSpecializationInfo(specIndex))
@@ -54,7 +54,7 @@ function GuildNoteUpdater:GetGuildIndexForPlayer()
     if playerRealm then
         playerRealm = playerRealm:gsub("%s+", "")
     end
-    
+
     for i = 1, GetNumGuildMembers() do
         local fullName = GetGuildRosterInfo(i)
         if fullName then
@@ -66,6 +66,13 @@ function GuildNoteUpdater:GetGuildIndexForPlayer()
         end
     end
     return nil
+end
+
+-- Helper to safely trim strings (handles nil)
+local function safeTrim(str)
+    if not str then return nil end
+    if type(str) ~= "string" then return str end
+    return str:match("^%s*(.-)%s*$")
 end
 
 -- Builds and sets the guild note from current character data
@@ -99,7 +106,7 @@ function GuildNoteUpdater:UpdateGuildNote(checkForChanges)
 
     local notePrefix = self.notePrefix[characterKey]
     if notePrefix then
-        notePrefix = strtrim(notePrefix)
+        notePrefix = safeTrim(notePrefix)
         if notePrefix == "" then notePrefix = nil end
     end
 
@@ -116,7 +123,7 @@ function GuildNoteUpdater:UpdateGuildNote(checkForChanges)
     end
     if mainOrAlt then table.insert(noteParts, mainOrAlt) end
 
-    local newNote = strtrim(table.concat(noteParts, " "))
+    local newNote = safeTrim(table.concat(noteParts, " ")) or ""
 
     -- Truncate to fit 31-char guild note limit
     if #newNote > 31 then
@@ -133,11 +140,11 @@ function GuildNoteUpdater:UpdateGuildNote(checkForChanges)
             if profession2 then table.insert(noteParts, string.sub(profession2, 1, 2)) end
         end
         if mainOrAlt then table.insert(noteParts, string.sub(mainOrAlt, 1, 1)) end
-        newNote = strtrim(table.concat(noteParts, " "))
-        
+        newNote = safeTrim(table.concat(noteParts, " ")) or ""
+
         while #newNote > 31 and #noteParts > 1 do
             table.remove(noteParts)
-            newNote = strtrim(table.concat(noteParts, " "))
+            newNote = safeTrim(table.concat(noteParts, " ")) or ""
         end
     end
 
@@ -218,15 +225,19 @@ function GuildNoteUpdater:CreateUI()
     local specUpdateDropdown = CreateFrame("Frame", "GuildNoteUpdaterSpecUpdateDropdown", frame, "UIDropDownMenuTemplate")
     specUpdateDropdown:SetPoint("LEFT", specUpdateLabel, "RIGHT", 30, 0)
 
+    -- Create spec dropdown BEFORE the callback that references it
+    local specDropdown = CreateFrame("Frame", "GuildNoteUpdaterSpecDropdown", frame, "UIDropDownMenuTemplate")
+    specDropdown:SetPoint("TOPLEFT", specUpdateDropdown, "BOTTOMLEFT", 0, -5)
+
     local function OnSpecUpdateSelect(btn)
         local key = GuildNoteUpdater:GetCharacterKey()
         GuildNoteUpdater.specUpdateMode[key] = btn.value
         UIDropDownMenu_SetText(specUpdateDropdown, btn.value)
         GuildNoteUpdaterSettings.specUpdateMode = GuildNoteUpdater.specUpdateMode
         if btn.value == "Manually" then
-            UIDropDownMenu_EnableDropDown(GuildNoteUpdaterSpecDropdown)
+            UIDropDownMenu_EnableDropDown(specDropdown)
         else
-            UIDropDownMenu_DisableDropDown(GuildNoteUpdaterSpecDropdown)
+            UIDropDownMenu_DisableDropDown(specDropdown)
         end
         GuildNoteUpdater:UpdateGuildNote()
     end
@@ -245,9 +256,6 @@ function GuildNoteUpdater:CreateUI()
     UIDropDownMenu_Initialize(specUpdateDropdown, InitializeSpecUpdateDropdown)
     UIDropDownMenu_SetWidth(specUpdateDropdown, 120)
     UIDropDownMenu_SetText(specUpdateDropdown, self.specUpdateMode[characterKey] or "Automatically")
-
-    local specDropdown = CreateFrame("Frame", "GuildNoteUpdaterSpecDropdown", frame, "UIDropDownMenuTemplate")
-    specDropdown:SetPoint("TOPLEFT", specUpdateDropdown, "BOTTOMLEFT", 0, -5)
 
     local function OnSpecSelect(btn)
         local key = GuildNoteUpdater:GetCharacterKey()
@@ -346,10 +354,11 @@ function GuildNoteUpdater:CreateUI()
     notePrefixText:SetPoint("LEFT", notePrefixLabel, "RIGHT", 62, 0)
     notePrefixText:SetAutoFocus(false)
     notePrefixText:SetMaxLetters(12)
-    notePrefixText:SetText(self.notePrefix[characterKey] and strtrim(self.notePrefix[characterKey]) or "")
+    local prefixValue = self.notePrefix[characterKey]
+    notePrefixText:SetText(prefixValue and safeTrim(prefixValue) or "")
     notePrefixText:SetScript("OnEnterPressed", function(editBox)
         local key = GuildNoteUpdater:GetCharacterKey()
-        GuildNoteUpdater.notePrefix[key] = strtrim(editBox:GetText())
+        GuildNoteUpdater.notePrefix[key] = safeTrim(editBox:GetText()) or ""
         GuildNoteUpdaterSettings.notePrefix = GuildNoteUpdater.notePrefix
         GuildNoteUpdater:UpdateGuildNote(true)
         editBox:ClearFocus()
