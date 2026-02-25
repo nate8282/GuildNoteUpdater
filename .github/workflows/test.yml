@@ -7,17 +7,21 @@ on:
     branches: [main]
 
 jobs:
-  test:
+  busted:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Install Lua and busted
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lua5.3 liblua5.3-dev luarocks
+          sudo luarocks install busted
+
       - name: Run busted tests
-        uses: lunarmodules/busted@v0
-        with:
-          args: --verbose --run=ci
+        run: busted --verbose
 
   legacy-test:
     runs-on: ubuntu-latest
@@ -42,5 +46,5 @@ jobs:
       - name: Run Luacheck
         uses: nebularg/actions-luacheck@v1
         with:
-          files: "GuildNoteUpdater.lua spec/ tests/"
+          files: "GuildNoteUpdater.lua"
           annotate: warning
