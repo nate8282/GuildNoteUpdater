@@ -1,0 +1,14 @@
+return {
+    _all = {
+        lpath = "?.lua",
+        helper = "spec/wow_api_mock.lua",
+    },
+    default = {
+        verbose = true,
+        ROOT = {"spec/"},
+    },
+    ci = {
+        output = "utfTerminal",
+        ROOT = {"spec/"},
+    },
+}

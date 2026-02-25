@@ -9,7 +9,19 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run busted tests
+        uses: lunarmodules/busted@v0
+        with:
+          args: --verbose --run=ci
+
+  legacy-test:
+    runs-on: ubuntu-latest
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -17,12 +29,12 @@ jobs:
       - name: Install Lua
         run: sudo apt-get update && sudo apt-get install -y lua5.3
 
-      - name: Run unit tests
+      - name: Run legacy unit tests
         run: lua5.3 tests/test_addon.lua
 
   luacheck:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -30,5 +42,5 @@ jobs:
       - name: Run Luacheck
         uses: nebularg/actions-luacheck@v1
         with:
-          files: "GuildNoteUpdater.lua"
-          args: "--globals GuildNoteUpdater GuildNoteUpdaterSettings CreateFrame UIParent C_Timer C_GuildInfo SlashCmdList SLASH_GUILDNOTEUPDATER1 SLASH_GUILDUPDATE1 UnitName GetRealmName GetNumGuildMembers GetGuildRosterInfo GuildRosterSetPublicNote GetAverageItemLevel GetSpecialization GetSpecializationInfo GetNumSpecializations GetProfessions GetProfessionInfo IsInGuild strsplit strtrim UIDropDownMenu_Initialize UIDropDownMenu_SetWidth UIDropDownMenu_SetText UIDropDownMenu_CreateInfo UIDropDownMenu_AddButton UIDropDownMenu_EnableDropDown UIDropDownMenu_DisableDropDown --no-unused-args --no-max-line-length"
+          files: "GuildNoteUpdater.lua spec/ tests/"
+          annotate: warning

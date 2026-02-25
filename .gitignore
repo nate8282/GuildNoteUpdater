@@ -1,0 +1,9 @@
+# Claude Code local config
+.claude/
+
+# Packager output
+.release/
+
+# OS files
+.DS_Store
+Thumbs.db

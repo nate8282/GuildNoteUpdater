@@ -1,0 +1,13 @@
+package-as: GuildNoteUpdater
+
+ignore:
+  - .busted
+  - .luacheckrc
+  - .gitignore
+  - .github
+  - .claude
+  - spec
+  - tests
+  - CLAUDE.md
+  - CONTRIBUTING.md
+  - World_of_Warcraft_API_Reference_for_Patch_12_0_0__Midnight_.md
