@@ -10,4 +10,5 @@ ignore:
   - tests
   - CLAUDE.md
   - CONTRIBUTING.md
+  - DEPRECATED_APIS.md
   - World_of_Warcraft_API_Reference_for_Patch_12_0_0__Midnight_.md
