@@ -151,7 +151,7 @@ function GuildNoteUpdater:BuildNoteString(characterKey)
     if not self.enabledCharacters[characterKey] then return nil end
 
     local overallItemLevel, equippedItemLevel = GetAverageItemLevel()
-    local itemLevelType = self.itemLevelType[characterKey] or "Overall"
+    local itemLevelType = self.itemLevelType[characterKey] or "Equipped"
     local itemLevel = (itemLevelType == "Equipped") and equippedItemLevel or overallItemLevel
     local flooredItemLevel = math.floor(itemLevel)
 
@@ -750,10 +750,10 @@ function GuildNoteUpdater:CreateUI()
     -- =========================================================
 
     -- Custom checkbox: small dark box with gold checkmark, styled label
-    local function MakeCB(parent, py, labelText, isChecked, onClick)
+    local function MakeCB(parent, py, labelText, isChecked, onClick, btnWidth)
         local btn = CreateFrame("Button", nil, parent)
         btn:SetPoint("TOPLEFT", parent, "TOPLEFT", 12, py)
-        btn:SetSize(300, 20)
+        btn:SetSize(btnWidth or 300, 20)
 
         local box = CreateFrame("Frame", nil, btn, "BackdropTemplate")
         box:SetSize(13, 13)
@@ -1007,7 +1007,7 @@ function GuildNoteUpdater:CreateUI()
             else
                 previewText:SetEnabled(false)
                 previewText:SetTextColor(1.0, 0.820, 0.0)
-                GuildNoteUpdater:UpdateNotePreview()
+                GuildNoteUpdater:UpdateGuildNote()
             end
         end
 
@@ -1030,19 +1030,22 @@ function GuildNoteUpdater:CreateUI()
     MakeSection(pageNC, ncY, "Note Content")
     ncY = ncY - 26
 
-    -- ── Show item level  [checkbox]  [Overall/Equipped dropdown — right-aligned] ──
+    -- ── Show item level  [checkbox]  [Overall/Equipped dropdown — close to label] ──
+    local itemLevelDD  -- forward declaration (enabled/disabled by checkbox)
     MakeCB(pageNC, ncY, "Show item level",
         self.enableItemLevel[characterKey] ~= false,
         function(val)
             local key = GuildNoteUpdater:GetCharacterKey()
             GuildNoteUpdater.enableItemLevel[key] = val
             GuildNoteUpdaterSettings.enableItemLevel = GuildNoteUpdater.enableItemLevel
+            if itemLevelDD then
+                if val then itemLevelDD:Enable() else itemLevelDD:Disable() end
+            end
             GuildNoteUpdater:UpdateGuildNote()
-        end)
+        end, 120)
 
-    -- Dropdown right-side column (x=175) — consistent across all rows with paired dropdowns
-    MakeDropdown(pageNC, 175, ncY,
-        self.itemLevelType[characterKey] or "Overall",
+    itemLevelDD = MakeDropdown(pageNC, 135, ncY,
+        self.itemLevelType[characterKey] or "Equipped",
         function()
             local opts = {}
             for _, opt in ipairs({"Overall", "Equipped"}) do
@@ -1050,22 +1053,32 @@ function GuildNoteUpdater:CreateUI()
             end
             return opts
         end,
-        105,
+        100,
         function(val)
             local k = GuildNoteUpdater:GetCharacterKey()
             GuildNoteUpdater.itemLevelType[k] = val
             GuildNoteUpdaterSettings.itemLevelType = GuildNoteUpdater.itemLevelType
             GuildNoteUpdater:UpdateGuildNote()
         end)
+    if self.enableItemLevel[characterKey] == false then itemLevelDD:Disable() end
     ncY = ncY - 26
 
     -- ── Show spec  [checkbox] ──
+    local specUpdateDD  -- forward declaration (enabled/disabled by checkbox)
     MakeCB(pageNC, ncY, "Show spec",
         self.enableSpec[characterKey] ~= false,
         function(val)
             local key = GuildNoteUpdater:GetCharacterKey()
             GuildNoteUpdater.enableSpec[key] = val
             GuildNoteUpdaterSettings.enableSpec = GuildNoteUpdater.enableSpec
+            if specUpdateDD then
+                if val then specUpdateDD:Enable() else specUpdateDD:Disable() end
+            end
+            if specDD then
+                local mode = GuildNoteUpdater.specUpdateMode[key] or "Automatically"
+                if val and mode == "Manually" then specDD:Enable()
+                else specDD:Disable() end
+            end
             GuildNoteUpdater:UpdateGuildNote()
         end)
     ncY = ncY - 26
@@ -1079,7 +1092,7 @@ function GuildNoteUpdater:CreateUI()
 
     -- Sub-row A: Update mode (Automatically / Manually)
     MakeLbl(pageNC, 30, ncY - 3, "Update")
-    MakeDropdown(pageNC, 76, ncY,
+    specUpdateDD = MakeDropdown(pageNC, 76, ncY,
         self.specUpdateMode[characterKey] or "Automatically",
         function()
             local opts = {}
@@ -1088,7 +1101,7 @@ function GuildNoteUpdater:CreateUI()
             end
             return opts
         end,
-        120,
+        148,
         function(val)
             local k = GuildNoteUpdater:GetCharacterKey()
             GuildNoteUpdater.specUpdateMode[k] = val
@@ -1112,7 +1125,7 @@ function GuildNoteUpdater:CreateUI()
             end
             return opts
         end,
-        135,
+        148,
         function(val)
             local k = GuildNoteUpdater:GetCharacterKey()
             GuildNoteUpdater.selectedSpec[k] = val
@@ -1120,7 +1133,11 @@ function GuildNoteUpdater:CreateUI()
             GuildNoteUpdater:UpdateGuildNote()
         end)
 
-    if self.specUpdateMode[characterKey] == "Automatically" or not self.specUpdateMode[characterKey] then
+    -- Initial enable/disable states for spec sub-row dropdowns
+    if self.enableSpec[characterKey] == false then
+        specUpdateDD:Disable()
+        specDD:Disable()
+    elseif self.specUpdateMode[characterKey] == "Automatically" or not self.specUpdateMode[characterKey] then
         specDD:Disable()
     end
     ncY = ncY - 28
@@ -1136,17 +1153,21 @@ function GuildNoteUpdater:CreateUI()
         end)
     ncY = ncY - 26
 
-    -- ── Show main / alt  [checkbox]  [None/Main/Alt dropdown — right-aligned] ──
+    -- ── Show main / alt  [checkbox]  [None/Main/Alt dropdown — close to label] ──
+    local mainAltDD  -- forward declaration (enabled/disabled by checkbox)
     MakeCB(pageNC, ncY, "Show main / alt",
         self.enableMainAlt[characterKey] ~= false,
         function(val)
             local key = GuildNoteUpdater:GetCharacterKey()
             GuildNoteUpdater.enableMainAlt[key] = val
             GuildNoteUpdaterSettings.enableMainAlt = GuildNoteUpdater.enableMainAlt
+            if mainAltDD then
+                if val then mainAltDD:Enable() else mainAltDD:Disable() end
+            end
             GuildNoteUpdater:UpdateGuildNote()
-        end)
+        end, 120)
 
-    MakeDropdown(pageNC, 175, ncY,
+    mainAltDD = MakeDropdown(pageNC, 135, ncY,
         self.mainOrAlt[characterKey] or "<None>",
         function()
             local opts = {}
@@ -1155,18 +1176,19 @@ function GuildNoteUpdater:CreateUI()
             end
             return opts
         end,
-        90,
+        100,
         function(val)
             local k = GuildNoteUpdater:GetCharacterKey()
             GuildNoteUpdater.mainOrAlt[k] = val
             GuildNoteUpdaterSettings.mainOrAlt = GuildNoteUpdater.mainOrAlt
             GuildNoteUpdater:UpdateGuildNote()
         end)
+    if self.enableMainAlt[characterKey] == false then mainAltDD:Disable() end
     ncY = ncY - 30
 
     -- ── Note format  [label + dropdown] ──
     MakeLbl(pageNC, 12, ncY - 3, "Format")
-    MakeDropdown(pageNC, 60, ncY,
+    MakeDropdown(pageNC, 76, ncY,
         self.noteFormat or "Standard",
         function()
             local opts = {}
@@ -1186,8 +1208,8 @@ function GuildNoteUpdater:CreateUI()
     -- ── Note prefix  [label + editbox] ──
     MakeLbl(pageNC, 12, ncY - 3, "Prefix")
     local notePrefixText = CreateFrame("EditBox", nil, pageNC, "InputBoxTemplate")
-    notePrefixText:SetSize(120, 20)
-    notePrefixText:SetPoint("TOPLEFT", pageNC, "TOPLEFT", 58, ncY)
+    notePrefixText:SetSize(148, 20)
+    notePrefixText:SetPoint("TOPLEFT", pageNC, "TOPLEFT", 76, ncY)
     notePrefixText:SetAutoFocus(false)
     notePrefixText:SetMaxLetters(12)
     local prefixValue = self.notePrefix[characterKey]
@@ -1268,6 +1290,7 @@ function GuildNoteUpdater:CreateUI()
         function(val)
             GuildNoteUpdater.updateTrigger = val
             GuildNoteUpdaterSettings.updateTrigger = val
+            GuildNoteUpdater:UpdateNotePreview()
         end)
     gY = gY - 30
 
@@ -1408,7 +1431,7 @@ function GuildNoteUpdater:CreateUI()
     previewEB:SetHeight(20)
     previewEB:SetAutoFocus(false)
     previewEB:SetEnabled(false)
-    previewEB:SetFontObject("GameFontNormalSmall")
+    previewEB:SetFontObject(GameFontNormalSmall)
     previewEB:SetTextColor(1.0, 0.820, 0.0)
     previewEB:SetTextInsets(0, 0, 0, 0)
     previewEB:SetMaxLetters(MAX_NOTE_LENGTH)
