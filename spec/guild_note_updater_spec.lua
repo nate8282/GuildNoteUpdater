@@ -1062,6 +1062,139 @@ describe("GuildNoteUpdater", function()
         end)
     end)
 
+    -- === alt registry ===
+    describe("alt registry", function()
+        before_each(function()
+            _G.GuildNoteUpdaterSettings = nil
+            GuildNoteUpdater:InitializeSettings()
+            GuildNoteUpdater.enableTooltipParsing = true
+            MockData.tooltipUnit = "Kaelen"
+            MockData.tooltipLines = {}
+            MockData.guildMembers = {
+                { name = "Kaelen-Sargeras",  note = "489 Feral LW Skn Alt" },
+                { name = "Nateicus-Sargeras", note = "489 Feral LW Skn Main" },
+            }
+        end)
+
+        after_each(function()
+            MockData.tooltipUnit = nil
+            MockData.tooltipLines = {}
+            MockData.guildMembers = {
+                { name = "Kaelen-Sargeras",   note = "" },
+                { name = "Kaelen-Proudmoore", note = "" },
+                { name = "Nateicus-Sargeras", note = "489 Feral LW Skn Main" },
+                { name = "Dannic-Sargeras",   note = "" },
+            }
+        end)
+
+        it("/gnu setmain stores mapping for current character", function()
+            SlashCmdList["GUILDNOTEUPDATER"]("setmain Nathaniel")
+            local charKey = GuildNoteUpdater:GetCharacterKey()
+            assert.are.equal("Nathaniel", GuildNoteUpdater.altRegistry[charKey])
+            assert.are.equal("Nathaniel", GuildNoteUpdaterSettings.altRegistry[charKey])
+        end)
+
+        it("/gnu setmain with no argument prints usage", function()
+            local printed = {}
+            local orig = print
+            _G.print = function(msg) table.insert(printed, msg) end
+            SlashCmdList["GUILDNOTEUPDATER"]("setmain")
+            _G.print = orig
+            local found = false
+            for _, line in ipairs(printed) do
+                if line:find("Usage") then found = true end
+            end
+            assert.is_true(found, "Expected usage hint")
+        end)
+
+        it("tooltip shows Main line for alt with registry entry", function()
+            local charKey = GuildNoteUpdater:GetCharacterKey()  -- "Kaelen-Sargeras"
+            GuildNoteUpdater.altRegistry[charKey] = "Nathaniel"
+            local lines = {}
+            local origDD = GameTooltip.AddDoubleLine
+            GameTooltip.AddDoubleLine = function(self, left, right)
+                table.insert(lines, { left = left, right = tostring(right or "") })
+            end
+            local cb = TooltipDataProcessor._callbacks[Enum.TooltipDataType.Unit]
+            cb(GameTooltip, { name = "Kaelen", unit = "target" })
+            GameTooltip.AddDoubleLine = origDD
+            local found = false
+            for _, l in ipairs(lines) do
+                if l.left and l.left:find("Main") and l.right == "Nathaniel" then found = true end
+            end
+            assert.is_true(found, "Expected 'Main: Nathaniel' line in tooltip")
+        end)
+
+        it("tooltip shows no Main line for alt without registry entry", function()
+            local lines = {}
+            local origDD = GameTooltip.AddDoubleLine
+            GameTooltip.AddDoubleLine = function(self, left, right)
+                table.insert(lines, { left = left, right = tostring(right or "") })
+            end
+            local cb = TooltipDataProcessor._callbacks[Enum.TooltipDataType.Unit]
+            cb(GameTooltip, { name = "Kaelen", unit = "target" })
+            GameTooltip.AddDoubleLine = origDD
+            for _, l in ipairs(lines) do
+                assert.is_falsy(l.left and l.left:find("Main") and l.right ~= "",
+                    "Unexpected Main registry line when no entry exists")
+            end
+        end)
+
+        it("tooltip shows no Main line for Main member even with registry entry", function()
+            -- Set stale registry entry for Nateicus (but their note says Main)
+            GuildNoteUpdater.altRegistry["Nateicus-Sargeras"] = "Nathaniel"
+            MockData.tooltipUnit = "Nateicus"
+            local lines = {}
+            local origDD = GameTooltip.AddDoubleLine
+            GameTooltip.AddDoubleLine = function(self, left, right)
+                table.insert(lines, { left = left, right = tostring(right or "") })
+            end
+            local cb = TooltipDataProcessor._callbacks[Enum.TooltipDataType.Unit]
+            cb(GameTooltip, { name = "Nateicus", unit = "target" })
+            GameTooltip.AddDoubleLine = origDD
+            for _, l in ipairs(lines) do
+                if l.left and l.left:find("Main") then
+                    assert.are_not.equal("Nathaniel", l.right, "Registry line must not appear for Main member")
+                end
+            end
+        end)
+
+        it("/gnu alts prints all mappings", function()
+            GuildNoteUpdater.altRegistry["Kaelen-Sargeras"] = "Nathaniel"
+            GuildNoteUpdater.altRegistry["Altchar-Sargeras"] = "Nathaniel"
+            local printed = {}
+            local orig = print
+            _G.print = function(msg) table.insert(printed, msg) end
+            SlashCmdList["GUILDNOTEUPDATER"]("alts")
+            _G.print = orig
+            local found = false
+            for _, line in ipairs(printed) do
+                if line:find("Kaelen%-Sargeras") then found = true end
+            end
+            assert.is_true(found, "Expected Kaelen-Sargeras in alts listing")
+        end)
+
+        it("/gnu alts clear removes all mappings", function()
+            GuildNoteUpdater.altRegistry["Kaelen-Sargeras"] = "Nathaniel"
+            SlashCmdList["GUILDNOTEUPDATER"]("alts clear")
+            assert.is_falsy(next(GuildNoteUpdater.altRegistry), "Registry should be empty after clear")
+            assert.is_falsy(next(GuildNoteUpdaterSettings.altRegistry), "SavedVars should be empty after clear")
+        end)
+
+        it("/gnu alts with empty registry prints empty message", function()
+            local printed = {}
+            local orig = print
+            _G.print = function(msg) table.insert(printed, msg) end
+            SlashCmdList["GUILDNOTEUPDATER"]("alts")
+            _G.print = orig
+            local found = false
+            for _, line in ipairs(printed) do
+                if line:find("empty") then found = true end
+            end
+            assert.is_true(found, "Expected 'empty' message when registry is empty")
+        end)
+    end)
+
     -- === stale tooltip warning ===
     describe("stale tooltip warning", function()
         before_each(function()
