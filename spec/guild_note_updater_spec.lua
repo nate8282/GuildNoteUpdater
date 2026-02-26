@@ -547,6 +547,7 @@ describe("GuildNoteUpdater", function()
                 enableProfessions = {}, debugEnabled = false,
                 notePrefix = {},
                 enableSpec = {}, enableTooltipParsing = true,
+                showUpdateNotification = true,
             }
             GuildNoteUpdater:InitializeSettings()
             assert.is_true(_G.GuildNoteUpdaterSettings.enabledCharacters["Test-Realm"])
@@ -556,6 +557,18 @@ describe("GuildNoteUpdater", function()
             _G.GuildNoteUpdaterSettings = nil
             GuildNoteUpdater:InitializeSettings()
             assert.is_true(GuildNoteUpdater.enableTooltipParsing)
+        end)
+
+        it("defaults showUpdateNotification to true", function()
+            _G.GuildNoteUpdaterSettings = nil
+            GuildNoteUpdater:InitializeSettings()
+            assert.is_true(GuildNoteUpdater.showUpdateNotification)
+        end)
+
+        it("preserves saved showUpdateNotification = false", function()
+            _G.GuildNoteUpdaterSettings = { showUpdateNotification = false }
+            GuildNoteUpdater:InitializeSettings()
+            assert.is_false(GuildNoteUpdater.showUpdateNotification)
         end)
 
         it("defaults enableProfessions to true for new characters", function()
@@ -584,6 +597,27 @@ describe("GuildNoteUpdater", function()
             assert.has_no.errors(function()
                 GuildNoteUpdater:ShowUpdateConfirmation("1234567890123456789012345678901")
             end)
+        end)
+
+        it("prints when showUpdateNotification is true", function()
+            GuildNoteUpdater.showUpdateNotification = true
+            local printed = false
+            local orig = print
+            print = function() printed = true end
+            GuildNoteUpdater:ShowUpdateConfirmation("489 Feral Main")
+            print = orig
+            assert.is_true(printed)
+        end)
+
+        it("suppresses print when showUpdateNotification is false", function()
+            GuildNoteUpdater.showUpdateNotification = false
+            local printed = false
+            local orig = print
+            print = function() printed = true end
+            GuildNoteUpdater:ShowUpdateConfirmation("489 Feral Main")
+            print = orig
+            GuildNoteUpdater.showUpdateNotification = true
+            assert.is_false(printed)
         end)
     end)
 

@@ -226,6 +226,7 @@ local charCountText = nil
 
 -- Shows visual confirmation when note is updated
 function GuildNoteUpdater:ShowUpdateConfirmation(newNote)
+    if not self.showUpdateNotification then return end
     local len = #newNote
     local color
     if len <= 24 then
@@ -417,6 +418,16 @@ function GuildNoteUpdater:CreateUI()
     enableTooltipButton:SetScript("OnClick", function(btn)
         GuildNoteUpdater.enableTooltipParsing = btn:GetChecked()
         GuildNoteUpdaterSettings.enableTooltipParsing = GuildNoteUpdater.enableTooltipParsing
+    end)
+
+    local showNotificationButton = CreateFrame("CheckButton", nil, frame, "UICheckButtonTemplate")
+    showNotificationButton:SetPoint("TOPRIGHT", -140, -84)
+    showNotificationButton.text:SetFontObject("GameFontNormal")
+    showNotificationButton.text:SetText("Show update notification")
+    showNotificationButton:SetChecked(self.showUpdateNotification ~= false)
+    showNotificationButton:SetScript("OnClick", function(btn)
+        GuildNoteUpdater.showUpdateNotification = btn:GetChecked()
+        GuildNoteUpdaterSettings.showUpdateNotification = GuildNoteUpdater.showUpdateNotification
     end)
 
     -- === Dropdowns section ===
@@ -643,7 +654,8 @@ function GuildNoteUpdater:InitializeSettings()
             enabledCharacters = {}, specUpdateMode = {}, selectedSpec = {},
             itemLevelType = {}, mainOrAlt = {}, enableProfessions = {},
             debugEnabled = false, notePrefix = {},
-            enableSpec = {}, enableTooltipParsing = true
+            enableSpec = {}, enableTooltipParsing = true,
+            showUpdateNotification = true
         }
     end
 
@@ -657,6 +669,7 @@ function GuildNoteUpdater:InitializeSettings()
     self.notePrefix = GuildNoteUpdaterSettings.notePrefix or {}
     self.enableSpec = GuildNoteUpdaterSettings.enableSpec or {}
     self.enableTooltipParsing = GuildNoteUpdaterSettings.enableTooltipParsing ~= false
+    self.showUpdateNotification = GuildNoteUpdaterSettings.showUpdateNotification ~= false
 
     local characterKey = self:GetCharacterKey()
     if self.enableProfessions[characterKey] == nil then self.enableProfessions[characterKey] = true end
