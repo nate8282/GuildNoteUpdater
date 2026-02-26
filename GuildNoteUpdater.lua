@@ -339,7 +339,7 @@ end
 -- Creates the settings UI frame with all controls and dropdowns
 function GuildNoteUpdater:CreateUI()
     local frame = CreateFrame("Frame", "GuildNoteUpdaterUI", UIParent, "BasicFrameTemplateWithInset")
-    frame:SetSize(500, 376)
+    frame:SetSize(545, 376)
     frame:SetPoint("CENTER")
     frame:Hide()
     frame:SetMovable(true)
