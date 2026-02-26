@@ -738,26 +738,30 @@ end
 function GuildNoteUpdater:CreateMinimapButton()
     local mb = GuildNoteUpdaterSettings.minimapButton
     local button = CreateFrame("Button", "GuildNoteUpdaterMinimapButton", Minimap)
-    button:SetSize(24, 24)
+    button:SetSize(31, 31)
     button:SetFrameStrata("MEDIUM")
     button:SetFrameLevel(8)
     button:RegisterForDrag("LeftButton")
 
+    -- Icon inset to match standard LibDBIcon minimap button proportions
     local icon = button:CreateTexture(nil, "BACKGROUND")
-    icon:SetAllPoints()
+    icon:SetSize(17, 17)
+    icon:SetPoint("TOPLEFT", button, "TOPLEFT", 7, -7)
     icon:SetTexture("Interface\\AddOns\\GuildNoteUpdater\\Icon")
 
     -- Circular mask to clip the icon into a circle
     local mask = button:CreateMaskTexture()
-    mask:SetAllPoints()
+    mask:SetSize(17, 17)
+    mask:SetPoint("TOPLEFT", button, "TOPLEFT", 7, -7)
     mask:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask", "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
     icon:AddMaskTexture(mask)
 
-    -- Circular border ring (matches standard minimap button look)
+    -- Circular border ring — 53x53 at TOPLEFT with no offset matches the
+    -- MiniMap-TrackingBorder texture layout used by LibDBIcon-1.0 (standard pattern)
     local border = button:CreateTexture(nil, "OVERLAY")
     border:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
-    border:SetSize(34, 34)
-    border:SetPoint("CENTER", button, "CENTER")
+    border:SetSize(53, 53)
+    border:SetPoint("TOPLEFT")
 
     -- Hover glow (ADD blend mode brightens instead of darkening)
     local highlight = button:CreateTexture(nil, "HIGHLIGHT")
