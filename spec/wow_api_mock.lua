@@ -67,6 +67,7 @@ UIParent.GetScale = function() return 1 end
 
 Minimap = mockFrame("Minimap")
 Minimap.GetCenter = function() return 400, 300 end
+Minimap.GetWidth = function() return 140 end
 
 function GetCursorPosition() return 400, 300 end
 

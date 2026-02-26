@@ -6,7 +6,6 @@ GuildNoteUpdater.pendingUpdateTimer = nil
 
 local DEBOUNCE_DELAY = 2
 local MAX_NOTE_LENGTH = 31
-local MINIMAP_RADIUS = 80
 local BUTTON_OFFSET = 5
 
 local professionAbbreviations = {
@@ -729,8 +728,9 @@ end
 -- Positions the minimap button at the given angle around the minimap edge
 local function UpdateMinimapButtonPosition(angle)
     local rad = math.rad(angle)
-    local x = math.cos(rad) * (MINIMAP_RADIUS + BUTTON_OFFSET)
-    local y = math.sin(rad) * (MINIMAP_RADIUS + BUTTON_OFFSET)
+    local radius = (Minimap:GetWidth() / 2) + BUTTON_OFFSET
+    local x = math.cos(rad) * radius
+    local y = math.sin(rad) * radius
     GuildNoteUpdater.minimapButton:SetPoint("CENTER", Minimap, "CENTER", x, y)
 end
 
@@ -747,6 +747,19 @@ function GuildNoteUpdater:CreateMinimapButton()
     icon:SetAllPoints()
     icon:SetTexture("Interface\\AddOns\\GuildNoteUpdater\\Icon")
 
+    -- Circular mask to clip the icon into a circle
+    local mask = button:CreateMaskTexture()
+    mask:SetAllPoints()
+    mask:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask", "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+    icon:AddMaskTexture(mask)
+
+    -- Circular border ring (matches standard minimap button look)
+    local border = button:CreateTexture(nil, "OVERLAY")
+    border:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
+    border:SetSize(56, 56)
+    border:SetPoint("TOPLEFT", button, "TOPLEFT", -12, 12)
+
+    -- Hover glow
     local highlight = button:CreateTexture(nil, "HIGHLIGHT")
     highlight:SetAllPoints()
     highlight:SetTexture("Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight")
