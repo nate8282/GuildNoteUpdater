@@ -2,8 +2,12 @@ name: Auto-update WoW interface version
 
 on:
   schedule:
-    - cron: '0 * * * *'  # Every hour — public repo so no cost, catches patches within ~1hr
-  workflow_dispatch:       # Allow manual trigger from the Actions tab
+    - cron: '*/5 * * * *'  # Every 5 minutes — minimum GitHub interval, public repo so free
+  workflow_dispatch:         # Allow manual trigger from the Actions tab
+
+concurrency:
+  group: wow-version-check
+  cancel-in-progress: true   # Drop queued runs; only one check needs to run at a time
 
 jobs:
   check-and-update:
