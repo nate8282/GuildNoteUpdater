@@ -738,7 +738,7 @@ end
 function GuildNoteUpdater:CreateMinimapButton()
     local mb = GuildNoteUpdaterSettings.minimapButton
     local button = CreateFrame("Button", "GuildNoteUpdaterMinimapButton", Minimap)
-    button:SetSize(32, 32)
+    button:SetSize(24, 24)
     button:SetFrameStrata("MEDIUM")
     button:SetFrameLevel(8)
     button:RegisterForDrag("LeftButton")
@@ -756,8 +756,8 @@ function GuildNoteUpdater:CreateMinimapButton()
     -- Circular border ring (matches standard minimap button look)
     local border = button:CreateTexture(nil, "OVERLAY")
     border:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
-    border:SetSize(56, 56)
-    border:SetPoint("TOPLEFT", button, "TOPLEFT", -12, 12)
+    border:SetSize(54, 54)
+    border:SetPoint("CENTER", button, "CENTER")
 
     -- Hover glow
     local highlight = button:CreateTexture(nil, "HIGHLIGHT")
