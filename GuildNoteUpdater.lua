@@ -338,7 +338,7 @@ end
 -- Creates the settings UI frame with all controls and dropdowns
 function GuildNoteUpdater:CreateUI()
     local frame = CreateFrame("Frame", "GuildNoteUpdaterUI", UIParent, "BasicFrameTemplateWithInset")
-    frame:SetSize(500, 360)
+    frame:SetSize(500, 376)
     frame:SetPoint("CENTER")
     frame:Hide()
     frame:SetMovable(true)
@@ -422,7 +422,7 @@ function GuildNoteUpdater:CreateUI()
     -- === Dropdowns section ===
 
     local specUpdateLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    specUpdateLabel:SetPoint("TOPLEFT", 27, -114)
+    specUpdateLabel:SetPoint("TOPLEFT", 27, -130)
     specUpdateLabel:SetText("Update spec")
 
     local specUpdateDropdown = CreateFrame("Frame", "GuildNoteUpdaterSpecUpdateDropdown", frame, "UIDropDownMenuTemplate")
@@ -489,7 +489,7 @@ function GuildNoteUpdater:CreateUI()
     end
 
     local itemLevelTypeLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    itemLevelTypeLabel:SetPoint("TOPLEFT", 27, -184)
+    itemLevelTypeLabel:SetPoint("TOPLEFT", 27, -200)
     itemLevelTypeLabel:SetText("Item Level Type")
 
     local itemLevelDropdown = CreateFrame("Frame", "GuildNoteUpdaterItemLevelDropdown", frame, "UIDropDownMenuTemplate")
@@ -519,7 +519,7 @@ function GuildNoteUpdater:CreateUI()
     UIDropDownMenu_SetText(itemLevelDropdown, self.itemLevelType[characterKey] or "Overall")
 
     local mainAltLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    mainAltLabel:SetPoint("TOPLEFT", 27, -221)
+    mainAltLabel:SetPoint("TOPLEFT", 27, -237)
     mainAltLabel:SetText("Main or Alt")
 
     local mainAltDropdown = CreateFrame("Frame", "GuildNoteUpdaterMainAltDropdown", frame, "UIDropDownMenuTemplate")
@@ -548,7 +548,7 @@ function GuildNoteUpdater:CreateUI()
     UIDropDownMenu_SetText(mainAltDropdown, self.mainOrAlt[characterKey] or "<None>")
 
     local notePrefixLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    notePrefixLabel:SetPoint("TOPLEFT", 27, -258)
+    notePrefixLabel:SetPoint("TOPLEFT", 27, -274)
     notePrefixLabel:SetText("Note Prefix")
 
     local notePrefixText = CreateFrame("EditBox", nil, frame, "InputBoxTemplate")
@@ -575,17 +575,17 @@ function GuildNoteUpdater:CreateUI()
 
     local divider = frame:CreateTexture(nil, "ARTWORK")
     divider:SetHeight(1)
-    divider:SetPoint("TOPLEFT", 15, -289)
-    divider:SetPoint("TOPRIGHT", -15, -289)
+    divider:SetPoint("TOPLEFT", 15, -305)
+    divider:SetPoint("TOPRIGHT", -15, -305)
     divider:SetColorTexture(0.5, 0.5, 0.5, 0.5)
 
     previewText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    previewText:SetPoint("TOPLEFT", 27, -302)
+    previewText:SetPoint("TOPLEFT", 27, -318)
     previewText:SetPoint("RIGHT", frame, "RIGHT", -70, 0)
     previewText:SetJustifyH("LEFT")
 
     charCountText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    charCountText:SetPoint("TOPRIGHT", -20, -302)
+    charCountText:SetPoint("TOPRIGHT", -20, -318)
     charCountText:SetJustifyH("RIGHT")
 
     self:UpdateNotePreview()
