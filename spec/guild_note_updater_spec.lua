@@ -7,8 +7,8 @@ describe("GuildNoteUpdater", function()
     local charKey
 
     setup(function()
-        UISpecialFrames = {}
-        GuildNoteUpdaterSettings = nil
+        _G.UISpecialFrames = {}
+        _G.GuildNoteUpdaterSettings = nil
         GuildNoteUpdater:InitializeSettings()
         charKey = GuildNoteUpdater:GetCharacterKey()
     end)
@@ -476,7 +476,7 @@ describe("GuildNoteUpdater", function()
     describe("ESC-to-close", function()
         it("adds frame name to UISpecialFrames", function()
             local found = false
-            for _, name in ipairs(UISpecialFrames) do
+            for _, name in ipairs(_G.UISpecialFrames) do
                 if name == "GuildNoteUpdaterUI" then
                     found = true
                     break
@@ -656,18 +656,19 @@ describe("GuildNoteUpdater", function()
     end)
 
     -- === Settings initialization ===
+    -- Note: Use _G for global assignments to avoid busted environment shadowing
     describe("InitializeSettings", function()
         it("creates default settings when none exist", function()
-            GuildNoteUpdaterSettings = nil
+            _G.GuildNoteUpdaterSettings = nil
             GuildNoteUpdater:InitializeSettings()
-            assert.is_not_nil(GuildNoteUpdaterSettings)
-            assert.is_table(GuildNoteUpdaterSettings.enabledCharacters)
-            assert.is_table(GuildNoteUpdaterSettings.useRoleAbbreviation)
-            assert.is_table(GuildNoteUpdaterSettings.enableSpec)
+            assert.is_not_nil(_G.GuildNoteUpdaterSettings)
+            assert.is_table(_G.GuildNoteUpdaterSettings.enabledCharacters)
+            assert.is_table(_G.GuildNoteUpdaterSettings.useRoleAbbreviation)
+            assert.is_table(_G.GuildNoteUpdaterSettings.enableSpec)
         end)
 
         it("preserves existing settings on reload", function()
-            GuildNoteUpdaterSettings = {
+            _G.GuildNoteUpdaterSettings = {
                 enabledCharacters = { ["Test-Realm"] = true },
                 specUpdateMode = {}, selectedSpec = {},
                 itemLevelType = {}, mainOrAlt = {},
@@ -676,19 +677,17 @@ describe("GuildNoteUpdater", function()
                 enableSpec = {}, enableTooltipParsing = true,
             }
             GuildNoteUpdater:InitializeSettings()
-            local chars = rawget(GuildNoteUpdater, "enabledCharacters")
-            assert.is_table(chars)
-            assert.is_true(chars["Test-Realm"])
+            assert.is_true(_G.GuildNoteUpdaterSettings.enabledCharacters["Test-Realm"])
         end)
 
         it("defaults enableTooltipParsing to true", function()
-            GuildNoteUpdaterSettings = nil
+            _G.GuildNoteUpdaterSettings = nil
             GuildNoteUpdater:InitializeSettings()
             assert.is_true(GuildNoteUpdater.enableTooltipParsing)
         end)
 
         it("defaults enableProfessions to true for new characters", function()
-            GuildNoteUpdaterSettings = nil
+            _G.GuildNoteUpdaterSettings = nil
             GuildNoteUpdater:InitializeSettings()
             local key = GuildNoteUpdater:GetCharacterKey()
             assert.is_true(GuildNoteUpdater.enableProfessions[key])
