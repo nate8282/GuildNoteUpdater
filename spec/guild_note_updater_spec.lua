@@ -309,7 +309,7 @@ describe("GuildNoteUpdater", function()
 
         it("does not have previousItemLevel field", function()
             GuildNoteUpdater:UpdateGuildNote()
-            assert.is_nil(GuildNoteUpdater.previousItemLevel)
+            assert.is_nil(rawget(GuildNoteUpdater, "previousItemLevel"))
         end)
     end)
 
@@ -497,7 +497,7 @@ describe("GuildNoteUpdater", function()
         end)
 
         it("registers PLAYER_EQUIPMENT_CHANGED after ADDON_LOADED", function()
-            -- ADDON_LOADED fires during InitializeSettings in setup()
+            GuildNoteUpdater:OnEvent("ADDON_LOADED", "GuildNoteUpdater")
             assert.is_truthy(MockData.registeredEvents["PLAYER_EQUIPMENT_CHANGED"])
         end)
     end)
@@ -637,7 +637,7 @@ describe("GuildNoteUpdater", function()
     -- === Dead code removal (BUG-003) ===
     describe("dead code removal", function()
         it("does not have previousItemLevel field after initialization", function()
-            assert.is_nil(GuildNoteUpdater.previousItemLevel)
+            assert.is_nil(rawget(GuildNoteUpdater, "previousItemLevel"))
         end)
 
         it("UpdateGuildNote works with no arguments", function()
@@ -676,7 +676,9 @@ describe("GuildNoteUpdater", function()
                 enableSpec = {}, enableTooltipParsing = true,
             }
             GuildNoteUpdater:InitializeSettings()
-            assert.is_true(GuildNoteUpdater.enabledCharacters["Test-Realm"])
+            local chars = rawget(GuildNoteUpdater, "enabledCharacters")
+            assert.is_table(chars)
+            assert.is_true(chars["Test-Realm"])
         end)
 
         it("defaults enableTooltipParsing to true", function()
@@ -726,16 +728,14 @@ describe("GuildNoteUpdater", function()
             MockData.spec.index = 2
         end)
 
-        it("does not crash when preview elements are nil", function()
-            local saved = GuildNoteUpdater.previewText
-            GuildNoteUpdater.previewText = nil
+        it("does not crash when called normally", function()
             assert.has_no.errors(function()
                 GuildNoteUpdater:UpdateNotePreview()
             end)
-            GuildNoteUpdater.previewText = saved
         end)
 
-        it("does not crash when called normally", function()
+        it("does not crash when character is disabled", function()
+            GuildNoteUpdater.enabledCharacters[charKey] = false
             assert.has_no.errors(function()
                 GuildNoteUpdater:UpdateNotePreview()
             end)

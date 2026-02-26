@@ -165,8 +165,8 @@ function GuildNoteUpdater:ParseGuildNote(note)
     end
     if #profs > 0 then result.professions = profs end
 
-    -- Only return if we found something meaningful
-    if result.ilvl or result.spec or result.role or result.mainAlt or result.professions then
+    -- Only return if we found an ilvl (required for addon-generated notes)
+    if result.ilvl then
         return result
     end
     return nil
@@ -248,6 +248,10 @@ function GuildNoteUpdater:BuildNoteString(characterKey)
     return newNote
 end
 
+-- Module-level preview references (avoids mock frame __index issues in tests)
+local previewText = nil
+local charCountText = nil
+
 -- Shows visual confirmation when note is updated
 function GuildNoteUpdater:ShowUpdateConfirmation(newNote)
     local len = #newNote
@@ -264,7 +268,7 @@ end
 
 -- Refreshes the note preview display in the settings UI
 function GuildNoteUpdater:UpdateNotePreview()
-    if not self.previewText then return end
+    if not previewText then return end
 
     local characterKey = self:GetCharacterKey()
     local note = self:BuildNoteString(characterKey)
@@ -279,15 +283,15 @@ function GuildNoteUpdater:UpdateNotePreview()
         else
             color = "|cFFFF0000"
         end
-        self.previewText:SetText("|cFFAAAAAAPreview:|r " .. note)
-        self.charCountText:SetText(color .. charCount .. "/" .. MAX_NOTE_LENGTH .. "|r")
+        previewText:SetText("|cFFAAAAAAPreview:|r " .. note)
+        charCountText:SetText(color .. charCount .. "/" .. MAX_NOTE_LENGTH .. "|r")
     else
         if not self.enabledCharacters[characterKey] then
-            self.previewText:SetText("|cFF888888Disabled for this character|r")
+            previewText:SetText("|cFF888888Disabled for this character|r")
         else
-            self.previewText:SetText("|cFF888888Waiting for data...|r")
+            previewText:SetText("|cFF888888Waiting for data...|r")
         end
-        self.charCountText:SetText("")
+        charCountText:SetText("")
     end
 end
 
@@ -621,14 +625,14 @@ function GuildNoteUpdater:CreateUI()
     divider:SetPoint("TOPRIGHT", -15, -315)
     divider:SetColorTexture(0.5, 0.5, 0.5, 0.5)
 
-    self.previewText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    self.previewText:SetPoint("TOPLEFT", 27, -328)
-    self.previewText:SetPoint("RIGHT", frame, "RIGHT", -70, 0)
-    self.previewText:SetJustifyH("LEFT")
+    previewText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    previewText:SetPoint("TOPLEFT", 27, -328)
+    previewText:SetPoint("RIGHT", frame, "RIGHT", -70, 0)
+    previewText:SetJustifyH("LEFT")
 
-    self.charCountText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    self.charCountText:SetPoint("TOPRIGHT", -20, -328)
-    self.charCountText:SetJustifyH("RIGHT")
+    charCountText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    charCountText:SetPoint("TOPRIGHT", -20, -328)
+    charCountText:SetJustifyH("RIGHT")
 
     self:UpdateNotePreview()
 

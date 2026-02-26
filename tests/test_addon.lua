@@ -65,9 +65,18 @@ function strsplit(delim, str)
     return str, nil
 end
 function strtrim(str) return str and str:match("^%s*(.-)%s*$") or "" end
-C_Timer = { After = function(d, f) f() end }
+C_Timer = {
+    After = function(d, f) f() end,
+    NewTimer = function(_, f) f(); return { Cancel = function() end } end,
+}
 C_GuildInfo = { GuildRoster = function() end }
 SlashCmdList = {}
+UISpecialFrames = {}
+GameTooltip = mockFrame()
+GameTooltip.GetUnit = function() return mockPlayer.name, "target" end
+GameTooltip.AddLine = function() end
+GameTooltip.AddDoubleLine = function() end
+GameTooltip.Show = function() end
 
 -- Load addon
 dofile("GuildNoteUpdater.lua")
