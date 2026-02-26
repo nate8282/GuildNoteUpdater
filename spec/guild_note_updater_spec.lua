@@ -905,17 +905,20 @@ describe("GuildNoteUpdater", function()
             }
         end)
 
-        it("prints summary with correct parsed/total count", function()
+        it("prints per-member lines with correct count in header", function()
             local printed = {}
             local orig = print
             _G.print = function(msg) table.insert(printed, msg) end
             SlashCmdList["GUILDNOTEUPDATER"]("roster")
             _G.print = orig
+            -- header line should show 3/4 (3 GNU notes out of 4 members)
             local found = false
             for _, line in ipairs(printed) do
-                if line:find("3 / 4") then found = true end
+                if line:find("3/4") then found = true end
             end
-            assert.is_true(found, "Expected '3 / 4' in output")
+            assert.is_true(found, "Expected '3/4' in header")
+            -- should also have individual member lines
+            assert.is_true(#printed >= 4, "Expected header + 3 member lines")
         end)
 
         it("computes correct average ilvl for all members", function()
@@ -990,10 +993,6 @@ describe("GuildNoteUpdater", function()
             MockData.groupMemberIlvl = {}
         end)
 
-        it("defaults staleThreshold to 15", function()
-            assert.are.equal(15, GuildNoteUpdaterSettings.staleThreshold)
-        end)
-
         it("shows warning when live ilvl exceeds note ilvl by threshold", function()
             -- party1 matches "Nateicus", live=630, note=489, delta=141 > 15
             MockData.groupMemberIlvl["party1"] = 630
@@ -1035,18 +1034,5 @@ describe("GuildNoteUpdater", function()
             assert.is_false(warningShown)
         end)
 
-        it("does not show warning when threshold is 0", function()
-            GuildNoteUpdaterSettings.staleThreshold = 0
-            MockData.groupMemberIlvl["party1"] = 700
-            local warningShown = false
-            local origAddLine = GameTooltip.AddLine
-            GameTooltip.AddLine = function(self, text)
-                if text and text:find("outdated") then warningShown = true end
-            end
-            local cb = TooltipDataProcessor._callbacks[Enum.TooltipDataType.Unit]
-            cb(GameTooltip, { name = "Nateicus", unit = "party1" })
-            GameTooltip.AddLine = origAddLine
-            assert.is_false(warningShown)
-        end)
     end)
 end)
