@@ -28,15 +28,6 @@ read_globals = {
     "CreateFrame",
     "UIParent",
 
-    -- Dropdown menu API
-    "UIDropDownMenu_Initialize",
-    "UIDropDownMenu_SetWidth",
-    "UIDropDownMenu_SetText",
-    "UIDropDownMenu_CreateInfo",
-    "UIDropDownMenu_AddButton",
-    "UIDropDownMenu_EnableDropDown",
-    "UIDropDownMenu_DisableDropDown",
-
     -- Player info
     "UnitName",
     "GetRealmName",
