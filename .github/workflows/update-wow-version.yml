@@ -1,0 +1,93 @@
+name: Auto-update WoW interface version
+
+on:
+  schedule:
+    - cron: '0 10 * * *'  # Daily at 10:00 UTC
+  workflow_dispatch:        # Allow manual trigger from the Actions tab
+
+jobs:
+  check-and-update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    outputs:
+      updated: ${{ steps.update.outputs.updated }}
+      new_tag: ${{ steps.update.outputs.new_tag }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch live WoW interface version
+        id: wow
+        run: |
+          set -e
+          # Blizzard's public NGDP patch manifest — no auth required
+          RAW=$(curl -sf --max-time 15 "https://us.patch.battle.net:1119/wow/versions")
+
+          # Extract US region VersionsName field (e.g. "12.0.1.66102")
+          VERSION_STRING=$(echo "$RAW" | grep '^us|' | cut -d'|' -f6)
+
+          if [[ -z "$VERSION_STRING" ]]; then
+            echo "ERROR: Could not parse version from patch manifest"
+            exit 1
+          fi
+
+          MAJOR=$(echo "$VERSION_STRING" | cut -d'.' -f1)
+          MINOR=$(echo "$VERSION_STRING" | cut -d'.' -f2)
+          PATCH=$(echo "$VERSION_STRING" | cut -d'.' -f3)
+          IFACE=$(( MAJOR * 10000 + MINOR * 100 + PATCH ))
+
+          # Sanity check
+          if [[ $IFACE -lt 100000 || $IFACE -gt 999999 ]]; then
+            echo "ERROR: Interface number out of expected range: $IFACE"
+            exit 1
+          fi
+
+          echo "interface=$IFACE" >> $GITHUB_OUTPUT
+          echo "wow_version=${MAJOR}.${MINOR}.${PATCH}" >> $GITHUB_OUTPUT
+          echo "Detected: WoW ${MAJOR}.${MINOR}.${PATCH} → Interface $IFACE"
+
+      - name: Read current .toc values
+        id: toc
+        run: |
+          IFACE=$(grep '^## Interface:' GuildNoteUpdater.toc | awk '{print $3}')
+          VERSION=$(grep '^## Version:' GuildNoteUpdater.toc | awk '{print $3}')
+          echo "interface=$IFACE" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Current .toc: Interface $IFACE, Version $VERSION"
+
+      - name: Update .toc if interface version changed
+        id: update
+        if: steps.wow.outputs.interface != steps.toc.outputs.interface
+        run: |
+          NEW_IFACE=${{ steps.wow.outputs.interface }}
+          WOW_VER=${{ steps.wow.outputs.wow_version }}
+          CUR_VERSION=${{ steps.toc.outputs.version }}
+
+          # Bump addon patch version: e.g. 1.14.1 -> 1.14.2
+          VMAJ=$(echo "$CUR_VERSION" | cut -d'.' -f1)
+          VMIN=$(echo "$CUR_VERSION" | cut -d'.' -f2)
+          VPATCH=$(echo "$CUR_VERSION" | cut -d'.' -f3)
+          NEW_VERSION="$VMAJ.$VMIN.$(( VPATCH + 1 ))"
+
+          sed -i "s/^## Interface: .*/## Interface: $NEW_IFACE/" GuildNoteUpdater.toc
+          sed -i "s/^## Version: .*/## Version: $NEW_VERSION/" GuildNoteUpdater.toc
+
+          git config user.name "N8"
+          git config user.email "52011990+nate8282@users.noreply.github.com"
+          git add GuildNoteUpdater.toc
+          git commit -m "Bump interface to $NEW_IFACE (WoW $WOW_VER)"
+          git push origin main
+          git tag "v$NEW_VERSION"
+          git push origin "v$NEW_VERSION"
+
+          echo "updated=true" >> $GITHUB_OUTPUT
+          echo "new_tag=v$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "Released v$NEW_VERSION for WoW $WOW_VER (interface $NEW_IFACE)"
+
+  release:
+    needs: check-and-update
+    if: needs.check-and-update.outputs.updated == 'true'
+    uses: ./.github/workflows/release.yml
+    secrets: inherit
