@@ -164,6 +164,14 @@ Enum = {
     },
 }
 
+-- C_AddOns mock
+C_AddOns = {
+    GetAddOnMetadata = function(name, field)
+        if field == "Version" then return "test" end
+        return nil
+    end,
+}
+
 -- Expose MockData globally so tests can modify it
 _G.MockData = MockData
 

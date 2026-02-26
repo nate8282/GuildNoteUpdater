@@ -363,6 +363,12 @@ function GuildNoteUpdater:CreateUI()
     frame.title:SetPoint("CENTER", frame.TitleBg, "CENTER", 0, 0)
     frame.title:SetText("Guild Note Updater")
 
+    local version = C_AddOns.GetAddOnMetadata("GuildNoteUpdater", "Version") or ""
+    frame.version = frame:CreateFontString(nil, "OVERLAY")
+    frame.version:SetFontObject("GameFontNormalSmall")
+    frame.version:SetPoint("RIGHT", frame.TitleBg, "RIGHT", -8, 0)
+    frame.version:SetText("|cFFAAAAAA v" .. version .. "|r")
+
     local characterKey = self:GetCharacterKey()
 
     -- === Left column checkboxes ===

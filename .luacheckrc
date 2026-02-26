@@ -47,6 +47,7 @@ read_globals = {
     "GuildRosterSetPublicNote",
     "IsInGuild",
     "C_GuildInfo",
+    "C_AddOns",
 
     -- Character info
     "GetAverageItemLevel",
@@ -84,7 +85,7 @@ files["spec/**"] = {
         "GetSpecializationInfo", "GetNumSpecializations",
         "GetProfessions", "GetProfessionInfo",
         "strsplit", "strtrim",
-        "C_Timer", "C_GuildInfo", "SlashCmdList",
+        "C_Timer", "C_GuildInfo", "C_AddOns", "SlashCmdList",
         "GuildNoteUpdater", "GuildNoteUpdaterSettings", "MockData",
         "GameTooltip", "TooltipDataProcessor", "Enum",
         "InCombatLockdown",
@@ -118,7 +119,7 @@ files["tests/**"] = {
         "GetSpecializationInfo", "GetNumSpecializations",
         "GetProfessions", "GetProfessionInfo",
         "strsplit", "strtrim",
-        "C_Timer", "C_GuildInfo", "SlashCmdList",
+        "C_Timer", "C_GuildInfo", "C_AddOns", "SlashCmdList",
         "GuildNoteUpdater", "GuildNoteUpdaterSettings",
         "GameTooltip", "TooltipDataProcessor", "Enum",
         "InCombatLockdown",

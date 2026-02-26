@@ -60,6 +60,7 @@ function GetProfessions() return 1, 2, nil, nil, nil end
 function GetProfessionInfo(i) return mockProfessions[i].name, 0, 100, 100, 0, 0, i, 0, 0, 0, mockProfessions[i].name end
 function IsInGuild() return true end
 function InCombatLockdown() return false end
+C_AddOns = { GetAddOnMetadata = function() return "test" end }
 function strsplit(delim, str)
     local pos = str:find(delim)
     if pos then return str:sub(1, pos-1), str:sub(pos+1) end
