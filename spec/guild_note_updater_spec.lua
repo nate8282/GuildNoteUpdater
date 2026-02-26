@@ -598,6 +598,24 @@ describe("GuildNoteUpdater", function()
             local key = GuildNoteUpdater:GetCharacterKey()
             assert.is_true(GuildNoteUpdater.enableProfessions[key])
         end)
+
+        it("defaults enableItemLevel to empty table (nil key = true via ~= false)", function()
+            _G.GuildNoteUpdaterSettings = nil
+            GuildNoteUpdater:InitializeSettings()
+            assert.are.equal("table", type(GuildNoteUpdater.enableItemLevel))
+        end)
+
+        it("defaults enableMainAlt to empty table (nil key = true via ~= false)", function()
+            _G.GuildNoteUpdaterSettings = nil
+            GuildNoteUpdater:InitializeSettings()
+            assert.are.equal("table", type(GuildNoteUpdater.enableMainAlt))
+        end)
+
+        it("defaults noteLocked to empty table", function()
+            _G.GuildNoteUpdaterSettings = nil
+            GuildNoteUpdater:InitializeSettings()
+            assert.are.equal("table", type(GuildNoteUpdater.noteLocked))
+        end)
     end)
 
     -- === ShowUpdateConfirmation (FEAT-003) ===
@@ -635,6 +653,118 @@ describe("GuildNoteUpdater", function()
             assert.spy(s).was_not_called()
             s:revert()
             GuildNoteUpdater.showUpdateNotification = true
+        end)
+    end)
+
+    -- === Field visibility toggles (#28) ===
+    describe("field visibility toggles", function()
+        before_each(function()
+            GuildNoteUpdater.enabledCharacters[charKey] = true
+            GuildNoteUpdater.enableItemLevel[charKey] = nil   -- nil = true via ~= false
+            GuildNoteUpdater.enableMainAlt[charKey] = nil     -- nil = true via ~= false
+            GuildNoteUpdater.enableSpec[charKey] = true
+            GuildNoteUpdater.enableProfessions[charKey] = false
+            GuildNoteUpdater.mainOrAlt[charKey] = "Main"
+            GuildNoteUpdater.notePrefix[charKey] = nil
+            GuildNoteUpdater.itemLevelType[charKey] = "Overall"
+            GuildNoteUpdater.specUpdateMode[charKey] = "Automatically"
+            MockData.itemLevel = { overall = 489.5, equipped = 485.2 }
+            MockData.spec.index = 2
+        end)
+
+        it("includes item level by default (nil = true)", function()
+            local note = GuildNoteUpdater:BuildNoteString(charKey)
+            assert.is_truthy(note:find("489"))
+        end)
+
+        it("excludes item level when enableItemLevel is false", function()
+            GuildNoteUpdater.enableItemLevel[charKey] = false
+            local note = GuildNoteUpdater:BuildNoteString(charKey)
+            assert.is_falsy(note and note:match("%d%d%d"))
+        end)
+
+        it("includes main/alt by default (nil = true)", function()
+            local note = GuildNoteUpdater:BuildNoteString(charKey)
+            assert.is_truthy(note:find("Main"))
+        end)
+
+        it("excludes main/alt when enableMainAlt is false", function()
+            GuildNoteUpdater.enableMainAlt[charKey] = false
+            local note = GuildNoteUpdater:BuildNoteString(charKey)
+            assert.is_falsy(note and note:find("Main"))
+        end)
+
+        it("returns empty string when all visible fields are disabled (clears note)", function()
+            GuildNoteUpdater.enableItemLevel[charKey] = false
+            GuildNoteUpdater.enableSpec[charKey] = false
+            GuildNoteUpdater.enableMainAlt[charKey] = false
+            -- enableProfessions already false, no prefix
+            local note = GuildNoteUpdater:BuildNoteString(charKey)
+            assert.are.equal("", note)
+        end)
+
+        it("note without ilvl still includes spec and main/alt", function()
+            GuildNoteUpdater.enableItemLevel[charKey] = false
+            local note = GuildNoteUpdater:BuildNoteString(charKey)
+            assert.is_truthy(note and note:find("Feral"))
+            assert.is_truthy(note and note:find("Main"))
+        end)
+
+        it("note without main/alt still includes ilvl and spec", function()
+            GuildNoteUpdater.enableMainAlt[charKey] = false
+            local note = GuildNoteUpdater:BuildNoteString(charKey)
+            assert.is_truthy(note and note:find("489"))
+            assert.is_truthy(note and note:find("Feral"))
+            assert.is_falsy(note and note:find("Main"))
+        end)
+    end)
+
+    -- === Note lock (#24) ===
+    describe("note lock", function()
+        before_each(function()
+            GuildNoteUpdater.previousNote = ""
+            MockData.updatedNotes = {}
+            MockData.inCombat = false
+            GuildNoteUpdater.pendingCombatUpdate = false
+            GuildNoteUpdater.enabledCharacters[charKey] = true
+            GuildNoteUpdater.noteLocked[charKey] = false
+            GuildNoteUpdater.enableItemLevel[charKey] = nil
+            GuildNoteUpdater.enableMainAlt[charKey] = nil
+            GuildNoteUpdater.enableSpec[charKey] = true
+            GuildNoteUpdater.enableProfessions[charKey] = false
+            GuildNoteUpdater.mainOrAlt[charKey] = "Main"
+            GuildNoteUpdater.notePrefix[charKey] = nil
+            GuildNoteUpdater.itemLevelType[charKey] = "Overall"
+            GuildNoteUpdater.specUpdateMode[charKey] = "Automatically"
+            MockData.itemLevel = { overall = 489.5, equipped = 485.2 }
+            MockData.spec.index = 2
+        end)
+
+        it("writes note normally when not locked", function()
+            GuildNoteUpdater:UpdateGuildNote()
+            assert.is_not_nil(MockData.updatedNotes[1])
+        end)
+
+        it("skips note write when note is locked", function()
+            GuildNoteUpdater.noteLocked[charKey] = true
+            GuildNoteUpdater:UpdateGuildNote()
+            assert.is_nil(MockData.updatedNotes[1])
+        end)
+
+        it("lock is per-character and does not affect other characters", function()
+            GuildNoteUpdater.noteLocked[charKey] = true
+            GuildNoteUpdater.noteLocked["OtherChar-Realm"] = false
+            GuildNoteUpdater:UpdateGuildNote()
+            assert.is_nil(MockData.updatedNotes[1])  -- current char locked
+        end)
+
+        it("unlocking allows note to be written again", function()
+            GuildNoteUpdater.noteLocked[charKey] = true
+            GuildNoteUpdater:UpdateGuildNote()
+            assert.is_nil(MockData.updatedNotes[1])
+            GuildNoteUpdater.noteLocked[charKey] = false
+            GuildNoteUpdater:UpdateGuildNote()
+            assert.is_not_nil(MockData.updatedNotes[1])
         end)
     end)
 
