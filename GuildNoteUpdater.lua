@@ -6,6 +6,7 @@ GuildNoteUpdater.pendingUpdateTimer = nil
 
 local DEBOUNCE_DELAY = 2
 local MAX_NOTE_LENGTH = 31
+local BUTTON_OFFSET = 5
 
 local professionAbbreviations = {
     Alchemy = "Alch", Blacksmithing = "BS", Enchanting = "Enc", Engineering = "Eng",
@@ -360,9 +361,10 @@ end
 -- Creates the settings UI frame with all controls and dropdowns
 function GuildNoteUpdater:CreateUI()
     local frame = CreateFrame("Frame", "GuildNoteUpdaterUI", UIParent, "BasicFrameTemplateWithInset")
-    frame:SetSize(500, 416)
+    frame:SetSize(500, 450)
     frame:SetPoint("CENTER")
     frame:Hide()
+    self.settingsFrame = frame
     frame:SetMovable(true)
     frame:EnableMouse(true)
     frame:RegisterForDrag("LeftButton")
@@ -490,6 +492,23 @@ function GuildNoteUpdater:CreateUI()
         local key = GuildNoteUpdater:GetCharacterKey()
         GuildNoteUpdater.noteLocked[key] = btn:GetChecked()
         GuildNoteUpdaterSettings.noteLocked = GuildNoteUpdater.noteLocked
+    end)
+
+    local showMinimapButton = CreateFrame("CheckButton", nil, frame, "UICheckButtonTemplate")
+    showMinimapButton:SetPoint("TOPRIGHT", -140, -136)
+    showMinimapButton.text:SetFontObject("GameFontNormal")
+    showMinimapButton.text:SetText("Show minimap button")
+    local mbSettings = GuildNoteUpdaterSettings.minimapButton
+    showMinimapButton:SetChecked(not mbSettings or mbSettings.enabled ~= false)
+    showMinimapButton:SetScript("OnClick", function(btn)
+        GuildNoteUpdaterSettings.minimapButton.enabled = btn:GetChecked()
+        if GuildNoteUpdater.minimapButton then
+            if btn:GetChecked() then
+                GuildNoteUpdater.minimapButton:Show()
+            else
+                GuildNoteUpdater.minimapButton:Hide()
+            end
+        end
     end)
 
     -- === Dropdowns section ===
@@ -644,21 +663,47 @@ function GuildNoteUpdater:CreateUI()
     notePrefixText:SetScript("OnEditFocusLost", SaveNotePrefix)
     notePrefixText:SetScript("OnEscapePressed", function(editBox) editBox:ClearFocus() end)
 
+    local updateTriggerLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    updateTriggerLabel:SetPoint("TOPLEFT", 27, -345)
+    updateTriggerLabel:SetText("Update trigger")
+
+    local updateTriggerDropdown = CreateFrame("Frame", "GuildNoteUpdaterUpdateTriggerDropdown", frame, "UIDropDownMenuTemplate")
+    updateTriggerDropdown:SetPoint("LEFT", updateTriggerLabel, "RIGHT", 18, 0)
+
+    local function OnUpdateTriggerSelect(btn)
+        GuildNoteUpdater.updateTrigger = btn.value
+        UIDropDownMenu_SetText(updateTriggerDropdown, btn.value)
+        GuildNoteUpdaterSettings.updateTrigger = btn.value
+    end
+
+    local function InitializeUpdateTriggerDropdown(dropdown, level)
+        local info = UIDropDownMenu_CreateInfo()
+        for _, opt in ipairs({"On Events", "On Login Only", "Manual Only"}) do
+            info.text, info.value, info.func = opt, opt, OnUpdateTriggerSelect
+            info.checked = (GuildNoteUpdater.updateTrigger == opt)
+            UIDropDownMenu_AddButton(info, level)
+        end
+    end
+
+    UIDropDownMenu_Initialize(updateTriggerDropdown, InitializeUpdateTriggerDropdown)
+    UIDropDownMenu_SetWidth(updateTriggerDropdown, 120)
+    UIDropDownMenu_SetText(updateTriggerDropdown, self.updateTrigger or "On Events")
+
     -- === Note Preview (FEAT-001) ===
 
     local divider = frame:CreateTexture(nil, "ARTWORK")
     divider:SetHeight(1)
-    divider:SetPoint("TOPLEFT", 15, -345)
-    divider:SetPoint("TOPRIGHT", -15, -345)
+    divider:SetPoint("TOPLEFT", 15, -376)
+    divider:SetPoint("TOPRIGHT", -15, -376)
     divider:SetColorTexture(0.5, 0.5, 0.5, 0.5)
 
     previewText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    previewText:SetPoint("TOPLEFT", 27, -358)
+    previewText:SetPoint("TOPLEFT", 27, -389)
     previewText:SetPoint("RIGHT", frame, "RIGHT", -70, 0)
     previewText:SetJustifyH("LEFT")
 
     charCountText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    charCountText:SetPoint("TOPRIGHT", -20, -358)
+    charCountText:SetPoint("TOPRIGHT", -20, -389)
     charCountText:SetJustifyH("RIGHT")
 
     self:UpdateNotePreview()
@@ -670,8 +715,103 @@ function GuildNoteUpdater:CreateUI()
     local function ToggleUI()
         if frame:IsShown() then frame:Hide() else frame:Show() end
     end
-    SlashCmdList["GUILDNOTEUPDATER"] = ToggleUI
+    SlashCmdList["GUILDNOTEUPDATER"] = function(msg)
+        if msg == "update" then
+            GuildNoteUpdater:UpdateGuildNote()
+        else
+            ToggleUI()
+        end
+    end
     SlashCmdList["GUILDUPDATE"] = ToggleUI
+end
+
+-- Positions the minimap button at the given angle around the minimap edge
+local function UpdateMinimapButtonPosition(angle)
+    local rad = math.rad(angle)
+    local radius = (Minimap:GetWidth() / 2) + BUTTON_OFFSET
+    local x = math.cos(rad) * radius
+    local y = math.sin(rad) * radius
+    GuildNoteUpdater.minimapButton:SetPoint("CENTER", Minimap, "CENTER", x, y)
+end
+
+-- Creates the minimap button for quick access to the settings panel
+function GuildNoteUpdater:CreateMinimapButton()
+    local mb = GuildNoteUpdaterSettings.minimapButton
+    local button = CreateFrame("Button", "GuildNoteUpdaterMinimapButton", Minimap)
+    button:SetSize(31, 31)
+    button:SetFrameStrata("MEDIUM")
+    button:SetFrameLevel(8)
+    button:RegisterForDrag("LeftButton")
+
+    -- Icon sized to fill the inner circle of the border ring
+    local icon = button:CreateTexture(nil, "BACKGROUND")
+    icon:SetSize(21, 21)
+    icon:SetPoint("TOPLEFT", button, "TOPLEFT", 5, -5)
+    icon:SetTexture("Interface\\AddOns\\GuildNoteUpdater\\Icon")
+
+    -- Circular mask to clip the icon into a circle
+    local mask = button:CreateMaskTexture()
+    mask:SetSize(21, 21)
+    mask:SetPoint("TOPLEFT", button, "TOPLEFT", 5, -5)
+    mask:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask", "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+    icon:AddMaskTexture(mask)
+
+    -- Circular border ring — 53x53 at TOPLEFT with no offset matches the
+    -- MiniMap-TrackingBorder texture layout used by LibDBIcon-1.0 (standard pattern)
+    local border = button:CreateTexture(nil, "OVERLAY")
+    border:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
+    border:SetSize(53, 53)
+    border:SetPoint("TOPLEFT")
+
+    -- Hover glow (ADD blend mode brightens instead of darkening)
+    local highlight = button:CreateTexture(nil, "HIGHLIGHT")
+    highlight:SetAllPoints()
+    highlight:SetTexture("Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight")
+    highlight:SetBlendMode("ADD")
+
+    button:SetScript("OnClick", function(self, mouseButton)
+        if mouseButton == "LeftButton" and not self._dragging then
+            if GuildNoteUpdater.settingsFrame:IsShown() then
+                GuildNoteUpdater.settingsFrame:Hide()
+            else
+                GuildNoteUpdater.settingsFrame:Show()
+            end
+        end
+    end)
+
+    button:SetScript("OnDragStart", function(self)
+        self._dragging = true
+    end)
+    button:SetScript("OnDragStop", function(self)
+        self._dragging = false
+    end)
+    button:SetScript("OnUpdate", function(self)
+        if not self._dragging then return end
+        local cx, cy = Minimap:GetCenter()
+        local mx, my = GetCursorPosition()
+        local scale = UIParent:GetScale()
+        mx, my = mx / scale, my / scale
+        local angle = math.deg(math.atan2(my - cy, mx - cx))
+        GuildNoteUpdaterSettings.minimapButton.angle = angle
+        UpdateMinimapButtonPosition(angle)
+    end)
+
+    button:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+        GameTooltip:SetText("GuildNoteUpdater")
+        GameTooltip:AddLine("Left-click to toggle settings", 1, 1, 1)
+        GameTooltip:AddLine("Drag to reposition", 1, 1, 1)
+        GameTooltip:Show()
+    end)
+    button:SetScript("OnLeave", function()
+        GameTooltip:Hide()
+    end)
+
+    GuildNoteUpdater.minimapButton = button
+    UpdateMinimapButtonPosition(mb.angle)
+    if not mb.enabled then
+        button:Hide()
+    end
 end
 
 -- Handles all registered addon events
@@ -692,7 +832,9 @@ function GuildNoteUpdater:OnEvent(event, arg1)
             self:UnregisterEvent("GUILD_ROSTER_UPDATE")
             C_Timer.After(1, function()
                 if IsInGuild() and GetNumGuildMembers() > 0 then
-                    GuildNoteUpdater:UpdateGuildNote()
+                    if (GuildNoteUpdater.updateTrigger or "On Events") ~= "Manual Only" then
+                        GuildNoteUpdater:UpdateGuildNote()
+                    end
                 end
             end)
         end
@@ -706,6 +848,8 @@ function GuildNoteUpdater:OnEvent(event, arg1)
         end
     elseif event == "PLAYER_EQUIPMENT_CHANGED" or event == "ACTIVE_TALENT_GROUP_CHANGED" then
         self:DebugPrint("Detected " .. event)
+        local trigger = self.updateTrigger or "On Events"
+        if trigger == "Manual Only" or trigger == "On Login Only" then return end
         -- BUG-001: Debounce rapid equipment changes
         if self.pendingUpdateTimer then
             self.pendingUpdateTimer:Cancel()
@@ -726,7 +870,9 @@ function GuildNoteUpdater:InitializeSettings()
             debugEnabled = false, notePrefix = {},
             enableSpec = {}, enableTooltipParsing = true,
             showUpdateNotification = true,
-            enableItemLevel = {}, enableMainAlt = {}, noteLocked = {}
+            enableItemLevel = {}, enableMainAlt = {}, noteLocked = {},
+            updateTrigger = "On Events",
+            minimapButton = { enabled = true, angle = 225 }
         }
     end
 
@@ -744,12 +890,17 @@ function GuildNoteUpdater:InitializeSettings()
     self.enableItemLevel = GuildNoteUpdaterSettings.enableItemLevel or {}
     self.enableMainAlt = GuildNoteUpdaterSettings.enableMainAlt or {}
     self.noteLocked = GuildNoteUpdaterSettings.noteLocked or {}
+    self.updateTrigger = GuildNoteUpdaterSettings.updateTrigger or "On Events"
+    if not GuildNoteUpdaterSettings.minimapButton then
+        GuildNoteUpdaterSettings.minimapButton = { enabled = true, angle = 225 }
+    end
 
     local characterKey = self:GetCharacterKey()
     if self.enableProfessions[characterKey] == nil then self.enableProfessions[characterKey] = true end
     if self.specUpdateMode[characterKey] == nil then self.specUpdateMode[characterKey] = "Automatically" end
 
     self:CreateUI()
+    self:CreateMinimapButton()
     self:SetupTooltipHook()
 end
 

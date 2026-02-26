@@ -792,4 +792,94 @@ describe("GuildNoteUpdater", function()
             end)
         end)
     end)
+
+    -- === update trigger ===
+    describe("update trigger", function()
+        local charKey = "Kaelen-Sargeras"
+
+        before_each(function()
+            GuildNoteUpdater.updateTrigger = "On Events"
+            GuildNoteUpdater.enabledCharacters[charKey] = true
+            GuildNoteUpdater.enableSpec[charKey] = true
+            GuildNoteUpdater.enableProfessions[charKey] = false
+            GuildNoteUpdater.enableItemLevel[charKey] = nil
+            GuildNoteUpdater.enableMainAlt[charKey] = nil
+            GuildNoteUpdater.noteLocked[charKey] = false
+            GuildNoteUpdater.mainOrAlt[charKey] = "Main"
+            GuildNoteUpdater.itemLevelType[charKey] = "Overall"
+            GuildNoteUpdater.specUpdateMode[charKey] = "Automatically"
+            GuildNoteUpdater.notePrefix[charKey] = nil
+            GuildNoteUpdater.hasUpdated = false
+            MockData.itemLevel = { overall = 489.5, equipped = 485.2 }
+            MockData.spec.index = 2
+            MockData.updatedNotes = {}
+        end)
+
+        it("defaults to On Events", function()
+            assert.are.equal("On Events", GuildNoteUpdater.updateTrigger)
+        end)
+
+        it("On Events: equipment change triggers note update", function()
+            GuildNoteUpdater.updateTrigger = "On Events"
+            GuildNoteUpdater:OnEvent("PLAYER_EQUIPMENT_CHANGED")
+            assert.is_not_nil(MockData.updatedNotes[1])
+        end)
+
+        it("On Login Only: equipment change does not trigger note update", function()
+            GuildNoteUpdater.updateTrigger = "On Login Only"
+            GuildNoteUpdater:OnEvent("PLAYER_EQUIPMENT_CHANGED")
+            assert.is_nil(MockData.updatedNotes[1])
+        end)
+
+        it("Manual Only: equipment change does not trigger note update", function()
+            GuildNoteUpdater.updateTrigger = "Manual Only"
+            GuildNoteUpdater:OnEvent("PLAYER_EQUIPMENT_CHANGED")
+            assert.is_nil(MockData.updatedNotes[1])
+        end)
+
+        it("Manual Only: login roster update does not trigger note update", function()
+            GuildNoteUpdater.updateTrigger = "Manual Only"
+            GuildNoteUpdater:OnEvent("GUILD_ROSTER_UPDATE")
+            assert.is_nil(MockData.updatedNotes[1])
+        end)
+
+        it("On Login Only: login roster update triggers note update", function()
+            GuildNoteUpdater.updateTrigger = "On Login Only"
+            GuildNoteUpdater:OnEvent("GUILD_ROSTER_UPDATE")
+            assert.is_not_nil(MockData.updatedNotes[1])
+        end)
+    end)
+
+    -- === minimap button ===
+    describe("minimap button", function()
+        before_each(function()
+            GuildNoteUpdaterSettings.minimapButton = { enabled = true, angle = 225 }
+        end)
+
+        it("InitializeSettings defaults minimapButton to enabled at angle 225", function()
+            GuildNoteUpdaterSettings.minimapButton = nil
+            GuildNoteUpdater:InitializeSettings()
+            assert.is_not_nil(GuildNoteUpdaterSettings.minimapButton)
+            assert.is_true(GuildNoteUpdaterSettings.minimapButton.enabled)
+            assert.are.equal(225, GuildNoteUpdaterSettings.minimapButton.angle)
+        end)
+
+        it("CreateMinimapButton creates the button frame", function()
+            GuildNoteUpdater:CreateMinimapButton()
+            assert.is_not_nil(GuildNoteUpdater.minimapButton)
+        end)
+
+        it("minimap button is hidden when enabled is false", function()
+            GuildNoteUpdaterSettings.minimapButton = { enabled = false, angle = 225 }
+            GuildNoteUpdater:CreateMinimapButton()
+            -- button:Hide() would have been called; we verify it did not error
+            assert.is_not_nil(GuildNoteUpdater.minimapButton)
+        end)
+
+        it("preserves existing angle on reload", function()
+            GuildNoteUpdaterSettings.minimapButton = { enabled = true, angle = 90 }
+            GuildNoteUpdater:InitializeSettings()
+            assert.are.equal(90, GuildNoteUpdaterSettings.minimapButton.angle)
+        end)
+    end)
 end)

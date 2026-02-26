@@ -65,6 +65,10 @@ read_globals = {
     -- Combat
     "InCombatLockdown",
 
+    -- Minimap
+    "Minimap",
+    "GetCursorPosition",
+
     -- Utility
     "C_Timer",
     "strsplit",
@@ -89,6 +93,7 @@ files["spec/**"] = {
         "GuildNoteUpdater", "GuildNoteUpdaterSettings", "MockData",
         "GameTooltip", "TooltipDataProcessor", "Enum",
         "InCombatLockdown",
+        "Minimap", "GetCursorPosition",
     },
     ignore = {
         "211",  -- Unused local variable (mock data)
@@ -123,6 +128,7 @@ files["tests/**"] = {
         "GuildNoteUpdater", "GuildNoteUpdaterSettings",
         "GameTooltip", "TooltipDataProcessor", "Enum",
         "InCombatLockdown",
+        "Minimap", "GetCursorPosition",
     },
     ignore = { "211", "212", "213", "311" },
     read_globals = { "dofile", "setmetatable", "os" },
