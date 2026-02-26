@@ -1402,7 +1402,6 @@ function GuildNoteUpdater:CreateUI()
     previewEB:SetTextColor(1.0, 0.820, 0.0)
     previewEB:SetTextInsets(0, 0, 0, 0)
     previewEB:SetMaxLetters(MAX_NOTE_LENGTH)
-    previewEB:SetCursorColor(1.0, 0.820, 0.0, 1.0)
 
     local function SaveLockedNote(eb)
         local key = GuildNoteUpdater:GetCharacterKey()
