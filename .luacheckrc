@@ -40,6 +40,7 @@ read_globals = {
     -- Player info
     "UnitName",
     "GetRealmName",
+    "UnitAverageItemLevel",
 
     -- Guild API
     "GetNumGuildMembers",
@@ -73,6 +74,9 @@ read_globals = {
     "C_Timer",
     "strsplit",
     "strtrim",
+
+    -- Class colors
+    "RAID_CLASS_COLORS",
 }
 
 -- Busted test files mock the entire WoW API as globals
@@ -83,7 +87,7 @@ files["spec/**"] = {
         "UIDropDownMenu_SetText", "UIDropDownMenu_CreateInfo",
         "UIDropDownMenu_AddButton", "UIDropDownMenu_EnableDropDown",
         "UIDropDownMenu_DisableDropDown",
-        "UnitName", "GetRealmName",
+        "UnitName", "GetRealmName", "UnitAverageItemLevel",
         "GetNumGuildMembers", "GetGuildRosterInfo", "GuildRosterSetPublicNote",
         "IsInGuild", "GetAverageItemLevel", "GetSpecialization",
         "GetSpecializationInfo", "GetNumSpecializations",
@@ -94,6 +98,7 @@ files["spec/**"] = {
         "GameTooltip", "TooltipDataProcessor", "Enum",
         "InCombatLockdown",
         "Minimap", "GetCursorPosition",
+        "RAID_CLASS_COLORS",
     },
     ignore = {
         "211",  -- Unused local variable (mock data)
@@ -118,7 +123,7 @@ files["tests/**"] = {
         "UIDropDownMenu_SetText", "UIDropDownMenu_CreateInfo",
         "UIDropDownMenu_AddButton", "UIDropDownMenu_EnableDropDown",
         "UIDropDownMenu_DisableDropDown",
-        "UnitName", "GetRealmName",
+        "UnitName", "GetRealmName", "UnitAverageItemLevel",
         "GetNumGuildMembers", "GetGuildRosterInfo", "GuildRosterSetPublicNote",
         "IsInGuild", "GetAverageItemLevel", "GetSpecialization",
         "GetSpecializationInfo", "GetNumSpecializations",
@@ -129,6 +134,7 @@ files["tests/**"] = {
         "GameTooltip", "TooltipDataProcessor", "Enum",
         "InCombatLockdown",
         "Minimap", "GetCursorPosition",
+        "RAID_CLASS_COLORS",
     },
     ignore = { "211", "212", "213", "311" },
     read_globals = { "dofile", "setmetatable", "os" },

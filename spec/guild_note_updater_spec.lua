@@ -882,4 +882,157 @@ describe("GuildNoteUpdater", function()
             assert.are.equal(90, GuildNoteUpdaterSettings.minimapButton.angle)
         end)
     end)
+
+    -- === /gnu roster ===
+    describe("/gnu roster", function()
+        before_each(function()
+            _G.GuildNoteUpdaterSettings = nil
+            GuildNoteUpdater:InitializeSettings()
+            MockData.guildMembers = {
+                { name = "Kaelen-Sargeras",   note = "489 Feral LW Skn Main" },
+                { name = "Nateicus-Sargeras",  note = "502 Balance Alch Ins Alt" },
+                { name = "Dannic-Sargeras",    note = "510 Guardian Main" },
+                { name = "Unknown-Sargeras",   note = "hand written note" },
+            }
+        end)
+
+        after_each(function()
+            MockData.guildMembers = {
+                { name = "Kaelen-Sargeras",   note = "" },
+                { name = "Kaelen-Proudmoore", note = "" },
+                { name = "Nateicus-Sargeras", note = "489 Feral LW Skn Main" },
+                { name = "Dannic-Sargeras",   note = "" },
+            }
+        end)
+
+        it("prints per-member lines with correct count in header", function()
+            local printed = {}
+            local orig = print
+            _G.print = function(msg) table.insert(printed, msg) end
+            SlashCmdList["GUILDNOTEUPDATER"]("roster")
+            _G.print = orig
+            -- header line should show 3/4 (3 GNU notes out of 4 members)
+            local found = false
+            for _, line in ipairs(printed) do
+                if line:find("3/4") then found = true end
+            end
+            assert.is_true(found, "Expected '3/4' in header")
+            -- should also have individual member lines
+            assert.is_true(#printed >= 4, "Expected header + 3 member lines")
+        end)
+
+        it("computes correct average ilvl for all members", function()
+            local printed = {}
+            local orig = print
+            _G.print = function(msg) table.insert(printed, msg) end
+            SlashCmdList["GUILDNOTEUPDATER"]("roster")
+            _G.print = orig
+            -- avg of 489, 502, 510 = 1501 / 3 = 500
+            local found = false
+            for _, line in ipairs(printed) do
+                if line:find("500") then found = true end
+            end
+            assert.is_true(found, "Expected avg ilvl 500 in output")
+        end)
+
+        it("mains filter only averages mains", function()
+            local printed = {}
+            local orig = print
+            _G.print = function(msg) table.insert(printed, msg) end
+            SlashCmdList["GUILDNOTEUPDATER"]("roster mains")
+            _G.print = orig
+            -- mains: 489 (Kaelen) and 510 (Dannic), avg = 499
+            local found = false
+            for _, line in ipairs(printed) do
+                if line:find("499") then found = true end
+            end
+            assert.is_true(found, "Expected avg ilvl 499 (mains only) in output")
+        end)
+
+        it("prints error when not in guild", function()
+            local orig_iig = IsInGuild
+            _G.IsInGuild = function() return false end
+            local printed = {}
+            local orig = print
+            _G.print = function(msg) table.insert(printed, msg) end
+            SlashCmdList["GUILDNOTEUPDATER"]("roster")
+            _G.print = orig
+            _G.IsInGuild = orig_iig
+            assert.is_true(#printed > 0)
+        end)
+
+        it("handles empty guild (no GNU notes) without crashing", function()
+            MockData.guildMembers = { { name = "Solo-Realm", note = "hand written" } }
+            local printed = {}
+            local orig = print
+            _G.print = function(msg) table.insert(printed, msg) end
+            SlashCmdList["GUILDNOTEUPDATER"]("roster")
+            _G.print = orig
+            local found = false
+            for _, line in ipairs(printed) do
+                if line:find("No recognized") then found = true end
+            end
+            assert.is_true(found)
+        end)
+    end)
+
+    -- === stale tooltip warning ===
+    describe("stale tooltip warning", function()
+        before_each(function()
+            _G.GuildNoteUpdaterSettings = nil
+            GuildNoteUpdater:InitializeSettings()
+            GuildNoteUpdater.enableTooltipParsing = true
+            MockData.tooltipUnit = "Nateicus"
+            MockData.tooltipLines = {}
+            MockData.groupMemberIlvl = {}
+        end)
+
+        after_each(function()
+            MockData.tooltipUnit = nil
+            MockData.tooltipLines = {}
+            MockData.groupMemberIlvl = {}
+        end)
+
+        it("shows warning when live ilvl exceeds note ilvl by threshold", function()
+            -- party1 matches "Nateicus", live=630, note=489, delta=141 > 15
+            MockData.groupMemberIlvl["party1"] = 630
+            local warningShown = false
+            local origAddLine = GameTooltip.AddLine
+            GameTooltip.AddLine = function(self, text)
+                if text and text:find("outdated") then warningShown = true end
+            end
+            local cb = TooltipDataProcessor._callbacks[Enum.TooltipDataType.Unit]
+            cb(GameTooltip, { name = "Nateicus", unit = "party1" })
+            GameTooltip.AddLine = origAddLine
+            assert.is_true(warningShown)
+        end)
+
+        it("does not show warning when delta is below threshold", function()
+            -- party1 matches "Nateicus", live=494, note=489, delta=5 < 15
+            MockData.groupMemberIlvl["party1"] = 494
+            local warningShown = false
+            local origAddLine = GameTooltip.AddLine
+            GameTooltip.AddLine = function(self, text)
+                if text and text:find("outdated") then warningShown = true end
+            end
+            local cb = TooltipDataProcessor._callbacks[Enum.TooltipDataType.Unit]
+            cb(GameTooltip, { name = "Nateicus", unit = "party1" })
+            GameTooltip.AddLine = origAddLine
+            assert.is_false(warningShown)
+        end)
+
+        it("does not show warning when unit is not in group", function()
+            -- no entry in groupMemberIlvl -> UnitAverageItemLevel returns nil
+            local warningShown = false
+            local origAddLine = GameTooltip.AddLine
+            GameTooltip.AddLine = function(self, text)
+                if text and text:find("outdated") then warningShown = true end
+            end
+            local cb = TooltipDataProcessor._callbacks[Enum.TooltipDataType.Unit]
+            cb(GameTooltip, { name = "Nateicus", unit = "target" })
+            GameTooltip.AddLine = origAddLine
+            assert.is_false(warningShown)
+        end)
+
+    end)
 end)

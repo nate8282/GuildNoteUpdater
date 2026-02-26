@@ -7,6 +7,7 @@ GuildNoteUpdater.pendingUpdateTimer = nil
 local DEBOUNCE_DELAY = 2
 local MAX_NOTE_LENGTH = 31
 local BUTTON_OFFSET = 5
+local STALE_ILVL_THRESHOLD = 15  -- warn in tooltip if note ilvl is this many levels behind live
 
 local professionAbbreviations = {
     Alchemy = "Alch", Blacksmithing = "BS", Enchanting = "Enc", Engineering = "Eng",
@@ -349,11 +350,115 @@ function GuildNoteUpdater:SetupTooltipHook()
                         if parsed.mainAlt then
                             tooltip:AddDoubleLine("  Status", parsed.mainAlt, 1, 0.82, 0, 1, 1, 1)
                         end
+                        -- Stale note warning: compare note ilvl to live ilvl for group members
+                        if STALE_ILVL_THRESHOLD > 0 then
+                            local noteIlvl = tonumber(parsed.ilvl)
+                            if noteIlvl then
+                                local unitToken = nil
+                                for i = 1, 4 do
+                                    local token = "party" .. i
+                                    if UnitName(token) == unitName then unitToken = token ; break end
+                                end
+                                if not unitToken then
+                                    for i = 1, 40 do
+                                        local token = "raid" .. i
+                                        if UnitName(token) == unitName then unitToken = token ; break end
+                                    end
+                                end
+                                if unitToken then
+                                    local liveIlvl = tonumber(UnitAverageItemLevel(unitToken))
+                                    if liveIlvl and (liveIlvl - noteIlvl) >= STALE_ILVL_THRESHOLD then
+                                        tooltip:AddLine(string.format(
+                                            "|cFFFFFF00Note may be outdated (note: %d, live: %d)|r",
+                                            noteIlvl, math.floor(liveIlvl)))
+                                    end
+                                end
+                            end
+                        end
                         tooltip:Show()
                     end
                     break
                 end
             end
+        end
+    end)
+end
+
+-- Prints a per-member guild roster to chat (/gnu roster)
+local function PrintRosterSummary(mainsOnly)
+    if not IsInGuild() then
+        print("|cFFFF0000GuildNoteUpdater:|r You are not in a guild.")
+        return
+    end
+    C_GuildInfo.GuildRoster()
+    C_Timer.After(0.5, function()
+        local totalMembers = 0
+        local mainCount, altCount = 0, 0
+        local members = {}
+
+        for i = 1, GetNumGuildMembers() do
+            local fullName, _, _, _, _, _, note, _, _, _, class = GetGuildRosterInfo(i)
+            if fullName then
+                totalMembers = totalMembers + 1
+                local parsed = GuildNoteUpdater:ParseGuildNote(note)
+                if parsed then
+                    local name = strsplit("-", fullName) or fullName
+                    local isMain = parsed.mainAlt == "Main"
+                    if isMain then mainCount = mainCount + 1 end
+                    if parsed.mainAlt == "Alt" then altCount = altCount + 1 end
+                    table.insert(members, {
+                        name = name,
+                        ilvl = tonumber(parsed.ilvl) or 0,
+                        spec = parsed.spec,
+                        profs = parsed.professions,
+                        mainAlt = parsed.mainAlt,
+                        class = class,
+                    })
+                end
+            end
+        end
+
+        -- Filter to mains only if requested
+        if mainsOnly then
+            local filtered = {}
+            for _, m in ipairs(members) do
+                if m.mainAlt == "Main" then table.insert(filtered, m) end
+            end
+            members = filtered
+        end
+
+        if #members == 0 then
+            print("|cFF00FF00[GNU] Roster:|r No recognized GNU notes found.")
+            return
+        end
+
+        -- Sort by ilvl descending
+        table.sort(members, function(a, b) return a.ilvl > b.ilvl end)
+
+        -- Compute avg from filtered list
+        local ilvlSum, ilvlCount = 0, 0
+        for _, m in ipairs(members) do
+            if m.ilvl > 0 then ilvlSum = ilvlSum + m.ilvl ; ilvlCount = ilvlCount + 1 end
+        end
+        local avgStr = ilvlCount > 0 and tostring(math.floor(ilvlSum / ilvlCount)) or "N/A"
+
+        local header = mainsOnly and "Mains Only" or "All"
+        print(string.format("|cFF00FF00===  GNU Roster: %s  ===|r", header))
+        print(string.format("|cFFFFD100  %d/%d w/notes  |  avg %s ilvl  |  %d Mains  |  %d Alts|r",
+            #members, totalMembers, avgStr, mainCount, altCount))
+
+        for _, m in ipairs(members) do
+            local parts = {}
+            if m.spec then table.insert(parts, m.spec) end
+            if m.profs then table.insert(parts, table.concat(m.profs, "/")) end
+            if m.mainAlt then table.insert(parts, m.mainAlt) end
+            local detail = #parts > 0 and ("  " .. table.concat(parts, " | ")) or ""
+            local nameColor = "|cFFFFFFFF"
+            if m.class and RAID_CLASS_COLORS and RAID_CLASS_COLORS[m.class] then
+                local c = RAID_CLASS_COLORS[m.class]
+                nameColor = string.format("|cFF%02X%02X%02X", math.floor(c.r * 255), math.floor(c.g * 255), math.floor(c.b * 255))
+            end
+            print(string.format("  %s%s|r — %d%s", nameColor, m.name, m.ilvl, detail))
         end
     end)
 end
@@ -718,6 +823,10 @@ function GuildNoteUpdater:CreateUI()
     SlashCmdList["GUILDNOTEUPDATER"] = function(msg)
         if msg == "update" then
             GuildNoteUpdater:UpdateGuildNote()
+        elseif msg == "roster mains" then
+            PrintRosterSummary(true)
+        elseif msg == "roster" then
+            PrintRosterSummary(false)
         else
             ToggleUI()
         end
