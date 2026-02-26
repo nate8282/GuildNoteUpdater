@@ -360,7 +360,7 @@ end
 -- Creates the settings UI frame with all controls and dropdowns
 function GuildNoteUpdater:CreateUI()
     local frame = CreateFrame("Frame", "GuildNoteUpdaterUI", UIParent, "BasicFrameTemplateWithInset")
-    frame:SetSize(500, 376)
+    frame:SetSize(500, 416)
     frame:SetPoint("CENTER")
     frame:Hide()
     frame:SetMovable(true)
@@ -458,7 +458,7 @@ function GuildNoteUpdater:CreateUI()
     end)
 
     local showItemLevelButton = CreateFrame("CheckButton", nil, frame, "UICheckButtonTemplate")
-    showItemLevelButton:SetPoint("TOPRIGHT", -140, -110)
+    showItemLevelButton:SetPoint("TOPLEFT", 20, -110)
     showItemLevelButton.text:SetFontObject("GameFontNormal")
     showItemLevelButton.text:SetText("Show item level")
     showItemLevelButton:SetChecked(self.enableItemLevel[characterKey] ~= false)
@@ -470,7 +470,7 @@ function GuildNoteUpdater:CreateUI()
     end)
 
     local showMainAltButton = CreateFrame("CheckButton", nil, frame, "UICheckButtonTemplate")
-    showMainAltButton:SetPoint("TOPRIGHT", -140, -136)
+    showMainAltButton:SetPoint("TOPLEFT", 20, -136)
     showMainAltButton.text:SetFontObject("GameFontNormal")
     showMainAltButton.text:SetText("Show main/alt")
     showMainAltButton:SetChecked(self.enableMainAlt[characterKey] ~= false)
@@ -482,7 +482,7 @@ function GuildNoteUpdater:CreateUI()
     end)
 
     local noteLockButton = CreateFrame("CheckButton", nil, frame, "UICheckButtonTemplate")
-    noteLockButton:SetPoint("TOPRIGHT", -140, -162)
+    noteLockButton:SetPoint("TOPRIGHT", -140, -110)
     noteLockButton.text:SetFontObject("GameFontNormal")
     noteLockButton.text:SetText("Lock note")
     noteLockButton:SetChecked(self.noteLocked[characterKey] == true)
@@ -495,7 +495,7 @@ function GuildNoteUpdater:CreateUI()
     -- === Dropdowns section ===
 
     local specUpdateLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    specUpdateLabel:SetPoint("TOPLEFT", 27, -130)
+    specUpdateLabel:SetPoint("TOPLEFT", 27, -170)
     specUpdateLabel:SetText("Update spec")
 
     local specUpdateDropdown = CreateFrame("Frame", "GuildNoteUpdaterSpecUpdateDropdown", frame, "UIDropDownMenuTemplate")
@@ -562,7 +562,7 @@ function GuildNoteUpdater:CreateUI()
     end
 
     local itemLevelTypeLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    itemLevelTypeLabel:SetPoint("TOPLEFT", 27, -200)
+    itemLevelTypeLabel:SetPoint("TOPLEFT", 27, -240)
     itemLevelTypeLabel:SetText("Item Level Type")
 
     local itemLevelDropdown = CreateFrame("Frame", "GuildNoteUpdaterItemLevelDropdown", frame, "UIDropDownMenuTemplate")
@@ -592,7 +592,7 @@ function GuildNoteUpdater:CreateUI()
     UIDropDownMenu_SetText(itemLevelDropdown, self.itemLevelType[characterKey] or "Overall")
 
     local mainAltLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    mainAltLabel:SetPoint("TOPLEFT", 27, -237)
+    mainAltLabel:SetPoint("TOPLEFT", 27, -277)
     mainAltLabel:SetText("Main or Alt")
 
     local mainAltDropdown = CreateFrame("Frame", "GuildNoteUpdaterMainAltDropdown", frame, "UIDropDownMenuTemplate")
@@ -621,7 +621,7 @@ function GuildNoteUpdater:CreateUI()
     UIDropDownMenu_SetText(mainAltDropdown, self.mainOrAlt[characterKey] or "<None>")
 
     local notePrefixLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    notePrefixLabel:SetPoint("TOPLEFT", 27, -274)
+    notePrefixLabel:SetPoint("TOPLEFT", 27, -314)
     notePrefixLabel:SetText("Note Prefix")
 
     local notePrefixText = CreateFrame("EditBox", nil, frame, "InputBoxTemplate")
@@ -648,17 +648,17 @@ function GuildNoteUpdater:CreateUI()
 
     local divider = frame:CreateTexture(nil, "ARTWORK")
     divider:SetHeight(1)
-    divider:SetPoint("TOPLEFT", 15, -305)
-    divider:SetPoint("TOPRIGHT", -15, -305)
+    divider:SetPoint("TOPLEFT", 15, -345)
+    divider:SetPoint("TOPRIGHT", -15, -345)
     divider:SetColorTexture(0.5, 0.5, 0.5, 0.5)
 
     previewText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    previewText:SetPoint("TOPLEFT", 27, -318)
+    previewText:SetPoint("TOPLEFT", 27, -358)
     previewText:SetPoint("RIGHT", frame, "RIGHT", -70, 0)
     previewText:SetJustifyH("LEFT")
 
     charCountText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    charCountText:SetPoint("TOPRIGHT", -20, -318)
+    charCountText:SetPoint("TOPRIGHT", -20, -358)
     charCountText:SetJustifyH("RIGHT")
 
     self:UpdateNotePreview()
