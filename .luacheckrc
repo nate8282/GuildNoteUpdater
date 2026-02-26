@@ -11,7 +11,7 @@ exclude_files = {
 ignore = {
     "11./SLASH_.*",     -- Slash command globals (SLASH_GUILDNOTEUPDATER1, etc.)
     "11./BINDING_.*",   -- Keybinding globals
-    "212/self",         -- Unused self in colon-style methods
+    "212",              -- Unused arguments (WoW callbacks have fixed signatures)
 }
 
 -- Globals the addon WRITES to
