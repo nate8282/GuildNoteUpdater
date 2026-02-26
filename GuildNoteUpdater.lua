@@ -1,14 +1,23 @@
 GuildNoteUpdater = CreateFrame("Frame")
 GuildNoteUpdater.hasUpdated = false
-GuildNoteUpdater.previousItemLevel = nil
 GuildNoteUpdater.previousNote = ""
 GuildNoteUpdater.debugEnabled = false
+GuildNoteUpdater.pendingUpdateTimer = nil
+
+local DEBOUNCE_DELAY = 2
+local MAX_NOTE_LENGTH = 31
 
 local professionAbbreviations = {
     Alchemy = "Alch", Blacksmithing = "BS", Enchanting = "Enc", Engineering = "Eng",
     Herbalism = "Herb", Inscription = "Ins", Jewelcrafting = "JC", Leatherworking = "LW",
     Mining = "Min", Skinning = "Skn", Tailoring = "Tail"
 }
+
+-- Reverse lookup for tooltip parsing
+local abbreviationToFull = {}
+for full, abbrev in pairs(professionAbbreviations) do
+    abbreviationToFull[abbrev] = full
+end
 
 -- Returns "Name-Realm" to uniquely identify characters across connected realms
 function GuildNoteUpdater:GetCharacterKey()
@@ -75,21 +84,82 @@ local function safeTrim(str)
     return str:match("^%s*(.-)%s*$")
 end
 
--- Builds and sets the guild note from current character data
-function GuildNoteUpdater:UpdateGuildNote(checkForChanges)
-    local characterKey = self:GetCharacterKey()
+-- Parses a guild note string into structured data for tooltip display
+function GuildNoteUpdater:ParseGuildNote(note)
+    if not note or note == "" then return nil end
 
-    if not self.enabledCharacters[characterKey] then
-        self:DebugPrint("Guild Note auto update disabled for " .. characterKey)
-        return
+    local result = {}
+    local tokens = {}
+
+    -- Handle prefix (everything before " - ")
+    local prefixEnd = note:find(" %- ")
+    local parseFrom = note
+    if prefixEnd then
+        result.prefix = note:sub(1, prefixEnd - 1)
+        parseFrom = note:sub(prefixEnd + 3)
     end
+
+    -- Tokenize remaining string
+    for token in parseFrom:gmatch("%S+") do
+        table.insert(tokens, token)
+    end
+
+    -- Extract ilvl (first 3+ digit numeric token)
+    for i, token in ipairs(tokens) do
+        if token:match("^%d%d%d+$") then
+            result.ilvl = token
+            table.remove(tokens, i)
+            break
+        end
+    end
+
+    -- Extract Main/Alt (last token if it matches)
+    if #tokens > 0 then
+        local last = tokens[#tokens]
+        if last == "Main" or last == "Alt" or last == "M" or last == "A" then
+            result.mainAlt = (last == "M" and "Main") or (last == "A" and "Alt") or last
+            table.remove(tokens, #tokens)
+        end
+    end
+
+    -- Remaining tokens: first is spec/role, rest are professions
+    local profs = {}
+    for i, token in ipairs(tokens) do
+        if i == 1 then
+            result.spec = token
+        else
+            if abbreviationToFull[token] then
+                table.insert(profs, abbreviationToFull[token])
+            else
+                table.insert(profs, token)
+            end
+        end
+    end
+    if #profs > 0 then result.professions = profs end
+
+    -- Only return if we found an ilvl (required for addon-generated notes)
+    if result.ilvl then
+        return result
+    end
+    return nil
+end
+
+-- Builds the guild note string from current character settings
+function GuildNoteUpdater:BuildNoteString(characterKey)
+    if not self.enabledCharacters[characterKey] then return nil end
 
     local overallItemLevel, equippedItemLevel = GetAverageItemLevel()
     local itemLevelType = self.itemLevelType[characterKey] or "Overall"
     local itemLevel = (itemLevelType == "Equipped") and equippedItemLevel or overallItemLevel
     local flooredItemLevel = math.floor(itemLevel)
 
-    local spec = self:GetSpec(characterKey)
+    -- Guard: don't write ilvl 0 (inventory not loaded yet)
+    if flooredItemLevel <= 0 then return nil end
+
+    local spec = nil
+    if self.enableSpec[characterKey] ~= false then
+        spec = self:GetSpec(characterKey)
+    end
 
     local mainOrAlt = self.mainOrAlt[characterKey]
     if mainOrAlt == "Select Option" or mainOrAlt == "<None>" then
@@ -101,7 +171,6 @@ function GuildNoteUpdater:UpdateGuildNote(checkForChanges)
         local prof1, prof2 = GetProfessions()
         if prof1 then profession1 = self:GetProfessionAbbreviation(select(1, GetProfessionInfo(prof1))) end
         if prof2 then profession2 = self:GetProfessionAbbreviation(select(1, GetProfessionInfo(prof2))) end
-        self:DebugPrint("Professions: " .. (profession1 or "none") .. ", " .. (profession2 or "none"))
     end
 
     local notePrefix = self.notePrefix[characterKey]
@@ -126,7 +195,7 @@ function GuildNoteUpdater:UpdateGuildNote(checkForChanges)
     local newNote = safeTrim(table.concat(noteParts, " ")) or ""
 
     -- Truncate to fit 31-char guild note limit
-    if #newNote > 31 then
+    if #newNote > MAX_NOTE_LENGTH then
         self:DebugPrint("Note too long (" .. #newNote .. " chars), truncating...")
         noteParts = {}
         if notePrefix then
@@ -142,10 +211,71 @@ function GuildNoteUpdater:UpdateGuildNote(checkForChanges)
         if mainOrAlt then table.insert(noteParts, string.sub(mainOrAlt, 1, 1)) end
         newNote = safeTrim(table.concat(noteParts, " ")) or ""
 
-        while #newNote > 31 and #noteParts > 1 do
+        while #newNote > MAX_NOTE_LENGTH and #noteParts > 1 do
             table.remove(noteParts)
             newNote = safeTrim(table.concat(noteParts, " ")) or ""
         end
+    end
+
+    return newNote
+end
+
+-- Module-level preview references (avoids mock frame __index issues in tests)
+local previewText = nil
+local charCountText = nil
+
+-- Shows visual confirmation when note is updated
+function GuildNoteUpdater:ShowUpdateConfirmation(newNote)
+    local len = #newNote
+    local color
+    if len <= 24 then
+        color = "|cFF00FF00"
+    elseif len <= MAX_NOTE_LENGTH then
+        color = "|cFFFFFF00"
+    else
+        color = "|cFFFF0000"
+    end
+    print("|cFF00FF00GuildNoteUpdater:|r Note updated -> |cFFFFFFFF" .. newNote .. "|r " .. color .. "(" .. len .. "/" .. MAX_NOTE_LENGTH .. ")|r")
+end
+
+-- Refreshes the note preview display in the settings UI
+function GuildNoteUpdater:UpdateNotePreview()
+    if not previewText then return end
+
+    local characterKey = self:GetCharacterKey()
+    local note = self:BuildNoteString(characterKey)
+
+    if note then
+        local charCount = #note
+        local color
+        if charCount <= 24 then
+            color = "|cFF00FF00"
+        elseif charCount <= MAX_NOTE_LENGTH then
+            color = "|cFFFFFF00"
+        else
+            color = "|cFFFF0000"
+        end
+        previewText:SetText("|cFFAAAAAAPreview:|r " .. note)
+        charCountText:SetText(color .. charCount .. "/" .. MAX_NOTE_LENGTH .. "|r")
+    else
+        if not self.enabledCharacters[characterKey] then
+            previewText:SetText("|cFF888888Disabled for this character|r")
+        else
+            previewText:SetText("|cFF888888Waiting for data...|r")
+        end
+        charCountText:SetText("")
+    end
+end
+
+-- Builds and sets the guild note from current character data
+function GuildNoteUpdater:UpdateGuildNote()
+    local characterKey = self:GetCharacterKey()
+    local newNote = self:BuildNoteString(characterKey)
+
+    if not newNote then
+        self:DebugPrint("No note to update (disabled or ilvl 0)")
+        self:UpdateNotePreview()
+        return
     end
 
     local guildIndex = self:GetGuildIndexForPlayer()
@@ -153,20 +283,62 @@ function GuildNoteUpdater:UpdateGuildNote(checkForChanges)
         if self.previousNote ~= newNote then
             self:DebugPrint("Updating guild note to: " .. newNote)
             GuildRosterSetPublicNote(guildIndex, newNote)
-            self.previousItemLevel = flooredItemLevel
             self.previousNote = newNote
+            self:ShowUpdateConfirmation(newNote)
         else
             self:DebugPrint("Note unchanged, skipping update")
         end
     else
         self:DebugPrint("Unable to find guild index for player.")
     end
+
+    self:UpdateNotePreview()
+end
+
+-- Sets up tooltip hook to display parsed guild note data
+-- Uses TooltipDataProcessor API (Retail 9.0+) - OnTooltipSetUnit was removed in modern WoW
+function GuildNoteUpdater:SetupTooltipHook()
+    if not TooltipDataProcessor then return end
+
+    TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Unit, function(tooltip, data)
+        if not GuildNoteUpdater.enableTooltipParsing then return end
+        if not IsInGuild() then return end
+
+        local unitName = data and data.name
+        if not unitName then return end
+
+        for i = 1, GetNumGuildMembers() do
+            local fullName, _, _, _, _, _, note = GetGuildRosterInfo(i)
+            if fullName and note and note ~= "" then
+                local name = strsplit("-", fullName)
+                if name == unitName then
+                    local parsed = GuildNoteUpdater:ParseGuildNote(note)
+                    if parsed and parsed.ilvl then
+                        tooltip:AddLine(" ")
+                        tooltip:AddLine("|cFF00FF00Guild Note:|r")
+                        tooltip:AddDoubleLine("  Item Level", parsed.ilvl, 1, 0.82, 0, 1, 1, 1)
+                        if parsed.spec then
+                            tooltip:AddDoubleLine("  Spec", parsed.spec, 1, 0.82, 0, 1, 1, 1)
+                        end
+                        if parsed.professions then
+                            tooltip:AddDoubleLine("  Professions", table.concat(parsed.professions, ", "), 1, 0.82, 0, 1, 1, 1)
+                        end
+                        if parsed.mainAlt then
+                            tooltip:AddDoubleLine("  Status", parsed.mainAlt, 1, 0.82, 0, 1, 1, 1)
+                        end
+                        tooltip:Show()
+                    end
+                    break
+                end
+            end
+        end
+    end)
 end
 
 -- Creates the settings UI frame with all controls and dropdowns
 function GuildNoteUpdater:CreateUI()
     local frame = CreateFrame("Frame", "GuildNoteUpdaterUI", UIParent, "BasicFrameTemplateWithInset")
-    frame:SetSize(500, 297)
+    frame:SetSize(500, 376)
     frame:SetPoint("CENTER")
     frame:Hide()
     frame:SetMovable(true)
@@ -175,6 +347,9 @@ function GuildNoteUpdater:CreateUI()
     frame:SetScript("OnDragStart", frame.StartMoving)
     frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
 
+    -- ESC-to-close support (BUG-005)
+    table.insert(UISpecialFrames, "GuildNoteUpdaterUI")
+
     frame.title = frame:CreateFontString(nil, "OVERLAY")
     frame.title:SetFontObject("GameFontHighlight")
     frame.title:SetPoint("CENTER", frame.TitleBg, "CENTER", 0, 0)
@@ -182,8 +357,10 @@ function GuildNoteUpdater:CreateUI()
 
     local characterKey = self:GetCharacterKey()
 
+    -- === Left column checkboxes ===
+
     local enableButton = CreateFrame("CheckButton", nil, frame, "UICheckButtonTemplate")
-    enableButton:SetPoint("TOPLEFT", 20, -30)
+    enableButton:SetPoint("TOPLEFT", 20, -32)
     enableButton.text:SetFontObject("GameFontNormal")
     enableButton.text:SetText("Enable for this character")
     enableButton:SetChecked(self.enabledCharacters[characterKey] or false)
@@ -194,10 +371,22 @@ function GuildNoteUpdater:CreateUI()
         GuildNoteUpdater:UpdateGuildNote()
     end)
 
+    local enableSpecButton = CreateFrame("CheckButton", nil, frame, "UICheckButtonTemplate")
+    enableSpecButton:SetPoint("TOPLEFT", 20, -58)
+    enableSpecButton.text:SetFontObject("GameFontNormal")
+    enableSpecButton.text:SetText("Show spec")
+    enableSpecButton:SetChecked(self.enableSpec[characterKey] ~= false)
+    enableSpecButton:SetScript("OnClick", function(btn)
+        local key = GuildNoteUpdater:GetCharacterKey()
+        GuildNoteUpdater.enableSpec[key] = btn:GetChecked()
+        GuildNoteUpdaterSettings.enableSpec = GuildNoteUpdater.enableSpec
+        GuildNoteUpdater:UpdateGuildNote()
+    end)
+
     local enableProfessionsButton = CreateFrame("CheckButton", nil, frame, "UICheckButtonTemplate")
-    enableProfessionsButton:SetPoint("TOPLEFT", 20, -70)
+    enableProfessionsButton:SetPoint("TOPLEFT", 20, -84)
     enableProfessionsButton.text:SetFontObject("GameFontNormal")
-    enableProfessionsButton.text:SetText("Enable professions")
+    enableProfessionsButton.text:SetText("Show professions")
     enableProfessionsButton:SetChecked(self.enableProfessions[characterKey] == true)
     enableProfessionsButton:SetScript("OnClick", function(btn)
         local key = GuildNoteUpdater:GetCharacterKey()
@@ -207,8 +396,10 @@ function GuildNoteUpdater:CreateUI()
         GuildNoteUpdater:UpdateGuildNote()
     end)
 
+    -- === Right column checkboxes ===
+
     local enableDebugButton = CreateFrame("CheckButton", nil, frame, "UICheckButtonTemplate")
-    enableDebugButton:SetPoint("TOPRIGHT", -140, -30)
+    enableDebugButton:SetPoint("TOPRIGHT", -140, -32)
     enableDebugButton.text:SetFontObject("GameFontNormal")
     enableDebugButton.text:SetText("Enable Debug")
     enableDebugButton:SetChecked(self.debugEnabled)
@@ -218,14 +409,25 @@ function GuildNoteUpdater:CreateUI()
         GuildNoteUpdaterSettings.debugEnabled = GuildNoteUpdater.debugEnabled
     end)
 
+    local enableTooltipButton = CreateFrame("CheckButton", nil, frame, "UICheckButtonTemplate")
+    enableTooltipButton:SetPoint("TOPRIGHT", -140, -58)
+    enableTooltipButton.text:SetFontObject("GameFontNormal")
+    enableTooltipButton.text:SetText("Parse tooltip notes")
+    enableTooltipButton:SetChecked(self.enableTooltipParsing ~= false)
+    enableTooltipButton:SetScript("OnClick", function(btn)
+        GuildNoteUpdater.enableTooltipParsing = btn:GetChecked()
+        GuildNoteUpdaterSettings.enableTooltipParsing = GuildNoteUpdater.enableTooltipParsing
+    end)
+
+    -- === Dropdowns section ===
+
     local specUpdateLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    specUpdateLabel:SetPoint("TOPLEFT", 27, -107)
+    specUpdateLabel:SetPoint("TOPLEFT", 27, -130)
     specUpdateLabel:SetText("Update spec")
 
     local specUpdateDropdown = CreateFrame("Frame", "GuildNoteUpdaterSpecUpdateDropdown", frame, "UIDropDownMenuTemplate")
     specUpdateDropdown:SetPoint("LEFT", specUpdateLabel, "RIGHT", 30, 0)
 
-    -- Create spec dropdown BEFORE the callback that references it
     local specDropdown = CreateFrame("Frame", "GuildNoteUpdaterSpecDropdown", frame, "UIDropDownMenuTemplate")
     specDropdown:SetPoint("TOPLEFT", specUpdateDropdown, "BOTTOMLEFT", 0, -5)
 
@@ -287,7 +489,7 @@ function GuildNoteUpdater:CreateUI()
     end
 
     local itemLevelTypeLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    itemLevelTypeLabel:SetPoint("TOPLEFT", 27, -183)
+    itemLevelTypeLabel:SetPoint("TOPLEFT", 27, -200)
     itemLevelTypeLabel:SetText("Item Level Type")
 
     local itemLevelDropdown = CreateFrame("Frame", "GuildNoteUpdaterItemLevelDropdown", frame, "UIDropDownMenuTemplate")
@@ -298,7 +500,7 @@ function GuildNoteUpdater:CreateUI()
         GuildNoteUpdater.itemLevelType[key] = btn.value
         UIDropDownMenu_SetText(itemLevelDropdown, btn.value)
         GuildNoteUpdaterSettings.itemLevelType = GuildNoteUpdater.itemLevelType
-        GuildNoteUpdater:UpdateGuildNote(true)
+        GuildNoteUpdater:UpdateGuildNote()
     end
 
     local function InitializeItemLevelDropdown(dropdown, level)
@@ -317,7 +519,7 @@ function GuildNoteUpdater:CreateUI()
     UIDropDownMenu_SetText(itemLevelDropdown, self.itemLevelType[characterKey] or "Overall")
 
     local mainAltLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    mainAltLabel:SetPoint("TOPLEFT", 27, -220)
+    mainAltLabel:SetPoint("TOPLEFT", 27, -237)
     mainAltLabel:SetText("Main or Alt")
 
     local mainAltDropdown = CreateFrame("Frame", "GuildNoteUpdaterMainAltDropdown", frame, "UIDropDownMenuTemplate")
@@ -328,7 +530,7 @@ function GuildNoteUpdater:CreateUI()
         GuildNoteUpdater.mainOrAlt[key] = btn.value
         UIDropDownMenu_SetText(mainAltDropdown, btn.value)
         GuildNoteUpdaterSettings.mainOrAlt = GuildNoteUpdater.mainOrAlt
-        GuildNoteUpdater:UpdateGuildNote(true)
+        GuildNoteUpdater:UpdateGuildNote()
     end
 
     local function InitializeMainAltDropdown(dropdown, level)
@@ -346,7 +548,7 @@ function GuildNoteUpdater:CreateUI()
     UIDropDownMenu_SetText(mainAltDropdown, self.mainOrAlt[characterKey] or "<None>")
 
     local notePrefixLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    notePrefixLabel:SetPoint("TOPLEFT", 27, -257)
+    notePrefixLabel:SetPoint("TOPLEFT", 27, -274)
     notePrefixLabel:SetText("Note Prefix")
 
     local notePrefixText = CreateFrame("EditBox", nil, frame, "InputBoxTemplate")
@@ -356,14 +558,39 @@ function GuildNoteUpdater:CreateUI()
     notePrefixText:SetMaxLetters(12)
     local prefixValue = self.notePrefix[characterKey]
     notePrefixText:SetText(prefixValue and safeTrim(prefixValue) or "")
-    notePrefixText:SetScript("OnEnterPressed", function(editBox)
+
+    -- BUG-004: Save prefix on Enter and on focus lost
+    local function SaveNotePrefix(editBox)
         local key = GuildNoteUpdater:GetCharacterKey()
         GuildNoteUpdater.notePrefix[key] = safeTrim(editBox:GetText()) or ""
         GuildNoteUpdaterSettings.notePrefix = GuildNoteUpdater.notePrefix
-        GuildNoteUpdater:UpdateGuildNote(true)
+        GuildNoteUpdater:UpdateGuildNote()
         editBox:ClearFocus()
-    end)
+    end
+    notePrefixText:SetScript("OnEnterPressed", SaveNotePrefix)
+    notePrefixText:SetScript("OnEditFocusLost", SaveNotePrefix)
     notePrefixText:SetScript("OnEscapePressed", function(editBox) editBox:ClearFocus() end)
+
+    -- === Note Preview (FEAT-001) ===
+
+    local divider = frame:CreateTexture(nil, "ARTWORK")
+    divider:SetHeight(1)
+    divider:SetPoint("TOPLEFT", 15, -305)
+    divider:SetPoint("TOPRIGHT", -15, -305)
+    divider:SetColorTexture(0.5, 0.5, 0.5, 0.5)
+
+    previewText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    previewText:SetPoint("TOPLEFT", 27, -318)
+    previewText:SetPoint("RIGHT", frame, "RIGHT", -70, 0)
+    previewText:SetJustifyH("LEFT")
+
+    charCountText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    charCountText:SetPoint("TOPRIGHT", -20, -318)
+    charCountText:SetJustifyH("RIGHT")
+
+    self:UpdateNotePreview()
+
+    -- === Slash Commands ===
 
     SLASH_GUILDNOTEUPDATER1 = "/gnu"
     SLASH_GUILDUPDATE1 = "/guildupdate"
@@ -398,8 +625,13 @@ function GuildNoteUpdater:OnEvent(event, arg1)
         end
     elseif event == "PLAYER_EQUIPMENT_CHANGED" or event == "ACTIVE_TALENT_GROUP_CHANGED" then
         self:DebugPrint("Detected " .. event)
-        C_Timer.After(1, function()
-            if IsInGuild() then GuildNoteUpdater:UpdateGuildNote(true) end
+        -- BUG-001: Debounce rapid equipment changes
+        if self.pendingUpdateTimer then
+            self.pendingUpdateTimer:Cancel()
+        end
+        self.pendingUpdateTimer = C_Timer.NewTimer(DEBOUNCE_DELAY, function()
+            self.pendingUpdateTimer = nil
+            if IsInGuild() then GuildNoteUpdater:UpdateGuildNote() end
         end)
     end
 end
@@ -410,7 +642,8 @@ function GuildNoteUpdater:InitializeSettings()
         GuildNoteUpdaterSettings = {
             enabledCharacters = {}, specUpdateMode = {}, selectedSpec = {},
             itemLevelType = {}, mainOrAlt = {}, enableProfessions = {},
-            debugEnabled = false, notePrefix = {}
+            debugEnabled = false, notePrefix = {},
+            enableSpec = {}, enableTooltipParsing = true
         }
     end
 
@@ -422,17 +655,18 @@ function GuildNoteUpdater:InitializeSettings()
     self.enableProfessions = GuildNoteUpdaterSettings.enableProfessions or {}
     self.debugEnabled = GuildNoteUpdaterSettings.debugEnabled or false
     self.notePrefix = GuildNoteUpdaterSettings.notePrefix or {}
+    self.enableSpec = GuildNoteUpdaterSettings.enableSpec or {}
+    self.enableTooltipParsing = GuildNoteUpdaterSettings.enableTooltipParsing ~= false
 
     local characterKey = self:GetCharacterKey()
     if self.enableProfessions[characterKey] == nil then self.enableProfessions[characterKey] = true end
     if self.specUpdateMode[characterKey] == nil then self.specUpdateMode[characterKey] = "Automatically" end
 
     self:CreateUI()
+    self:SetupTooltipHook()
 end
 
+-- BUG-006: Only register bootstrap events at file scope
 GuildNoteUpdater:RegisterEvent("ADDON_LOADED")
 GuildNoteUpdater:RegisterEvent("PLAYER_ENTERING_WORLD")
-GuildNoteUpdater:RegisterEvent("GUILD_ROSTER_UPDATE")
-GuildNoteUpdater:RegisterEvent("PLAYER_EQUIPMENT_CHANGED")
-GuildNoteUpdater:RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED")
 GuildNoteUpdater:SetScript("OnEvent", GuildNoteUpdater.OnEvent)

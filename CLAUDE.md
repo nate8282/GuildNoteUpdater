@@ -17,6 +17,7 @@ GuildNoteUpdater/
 ├── .busted                     # Busted test framework config
 ├── .luacheckrc                 # Luacheck linting config with WoW globals
 ├── .gitignore
+├── DEPRECATED_APIS.md          # ⚠️ Removed/deprecated WoW APIs and their replacements
 ├── spec/
 │   ├── wow_api_mock.lua        # WoW API mock layer for busted tests
 │   └── guild_note_updater_spec.lua  # Busted test suite
@@ -51,13 +52,17 @@ GuildNoteUpdater/
 2. Run linter: `luacheck GuildNoteUpdater.lua` (uses `.luacheckrc` automatically)
 3. Verify all tests pass and no lint errors
 
+### Before Writing WoW API Code
+- **Check `DEPRECATED_APIS.md` first** — if an API you plan to use is listed there, use the documented replacement instead
+- When you discover a newly broken/removed API in-game, add it to `DEPRECATED_APIS.md` immediately (old code, error text, replacement, notes), then update mocks and `.luacheckrc`
+
 ### Versioning & Releasing
 - Follow SemVer: `MAJOR.MINOR.PATCH`
 - Update version in `.toc` file `## Version:` field
 - Tag releases as `vX.Y.Z` and push the tag
 - BigWigsMods/packager auto-publishes to CurseForge + GitHub Releases on tag push
 - Requires `CF_API_KEY` secret in GitHub repo settings
-- Current: v1.7.0
+- Current: v1.8.0
 
 ## Coding Standards
 

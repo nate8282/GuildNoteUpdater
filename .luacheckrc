@@ -19,6 +19,7 @@ globals = {
     "GuildNoteUpdater",
     "GuildNoteUpdaterSettings",
     "SlashCmdList",
+    "UISpecialFrames",
 }
 
 -- WoW API functions the addon READS (organized by category)
@@ -55,6 +56,11 @@ read_globals = {
     "GetProfessions",
     "GetProfessionInfo",
 
+    -- Tooltip API (9.0+ TooltipDataProcessor replaces OnTooltipSetUnit)
+    "GameTooltip",
+    "TooltipDataProcessor",
+    "Enum",
+
     -- Utility
     "C_Timer",
     "strsplit",
@@ -64,7 +70,7 @@ read_globals = {
 -- Busted test files mock the entire WoW API as globals
 files["spec/**"] = {
     globals = {
-        "CreateFrame", "UIParent",
+        "CreateFrame", "UIParent", "UISpecialFrames",
         "UIDropDownMenu_Initialize", "UIDropDownMenu_SetWidth",
         "UIDropDownMenu_SetText", "UIDropDownMenu_CreateInfo",
         "UIDropDownMenu_AddButton", "UIDropDownMenu_EnableDropDown",
@@ -77,6 +83,7 @@ files["spec/**"] = {
         "strsplit", "strtrim",
         "C_Timer", "C_GuildInfo", "SlashCmdList",
         "GuildNoteUpdater", "GuildNoteUpdaterSettings", "MockData",
+        "GameTooltip", "TooltipDataProcessor", "Enum",
     },
     ignore = {
         "211",  -- Unused local variable (mock data)
@@ -96,7 +103,7 @@ files["spec/**"] = {
 -- Legacy test files (custom runner)
 files["tests/**"] = {
     globals = {
-        "CreateFrame", "UIParent",
+        "CreateFrame", "UIParent", "UISpecialFrames",
         "UIDropDownMenu_Initialize", "UIDropDownMenu_SetWidth",
         "UIDropDownMenu_SetText", "UIDropDownMenu_CreateInfo",
         "UIDropDownMenu_AddButton", "UIDropDownMenu_EnableDropDown",
@@ -109,6 +116,7 @@ files["tests/**"] = {
         "strsplit", "strtrim",
         "C_Timer", "C_GuildInfo", "SlashCmdList",
         "GuildNoteUpdater", "GuildNoteUpdaterSettings",
+        "GameTooltip", "TooltipDataProcessor", "Enum",
     },
     ignore = { "211", "212", "213", "311" },
     read_globals = { "dofile", "setmetatable", "os" },
