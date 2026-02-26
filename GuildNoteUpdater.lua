@@ -1030,7 +1030,7 @@ function GuildNoteUpdater:CreateUI()
     MakeSection(pageNC, ncY, "Note Content")
     ncY = ncY - 26
 
-    -- Show item level  [checkbox]   [dropdown: Overall/Equipped]
+    -- ── Show item level  [checkbox]  [Overall/Equipped dropdown — right-aligned] ──
     MakeCB(pageNC, ncY, "Show item level",
         self.enableItemLevel[characterKey] ~= false,
         function(val)
@@ -1040,7 +1040,8 @@ function GuildNoteUpdater:CreateUI()
             GuildNoteUpdater:UpdateGuildNote()
         end)
 
-    MakeDropdown(pageNC, 218, ncY,
+    -- Dropdown right-side column (x=175) — consistent across all rows with paired dropdowns
+    MakeDropdown(pageNC, 175, ncY,
         self.itemLevelType[characterKey] or "Overall",
         function()
             local opts = {}
@@ -1049,7 +1050,7 @@ function GuildNoteUpdater:CreateUI()
             end
             return opts
         end,
-        90,
+        105,
         function(val)
             local k = GuildNoteUpdater:GetCharacterKey()
             GuildNoteUpdater.itemLevelType[k] = val
@@ -1058,7 +1059,7 @@ function GuildNoteUpdater:CreateUI()
         end)
     ncY = ncY - 26
 
-    -- Show spec  [checkbox]
+    -- ── Show spec  [checkbox] ──
     MakeCB(pageNC, ncY, "Show spec",
         self.enableSpec[characterKey] ~= false,
         function(val)
@@ -1069,9 +1070,16 @@ function GuildNoteUpdater:CreateUI()
         end)
     ncY = ncY - 26
 
-    -- Update / Spec dropdowns (indented row)
-    MakeLbl(pageNC, 28, ncY - 4, "Update")
-    MakeDropdown(pageNC, 68, ncY,
+    -- Thin left bar to visually group the spec sub-options under "Show spec"
+    local specSubBar = pageNC:CreateTexture(nil, "BORDER")
+    specSubBar:SetWidth(1)
+    specSubBar:SetPoint("TOPLEFT", pageNC, "TOPLEFT", 22, ncY + 2)
+    specSubBar:SetHeight(54)   -- spans both sub-rows (26 + 28)
+    specSubBar:SetColorTexture(0.165, 0.165, 0.267, 1.0)
+
+    -- Sub-row A: Update mode (Automatically / Manually)
+    MakeLbl(pageNC, 30, ncY - 3, "Update")
+    MakeDropdown(pageNC, 76, ncY,
         self.specUpdateMode[characterKey] or "Automatically",
         function()
             local opts = {}
@@ -1080,7 +1088,7 @@ function GuildNoteUpdater:CreateUI()
             end
             return opts
         end,
-        100,
+        120,
         function(val)
             local k = GuildNoteUpdater:GetCharacterKey()
             GuildNoteUpdater.specUpdateMode[k] = val
@@ -1088,9 +1096,11 @@ function GuildNoteUpdater:CreateUI()
             if val == "Manually" then specDD:Enable() else specDD:Disable() end
             GuildNoteUpdater:UpdateGuildNote()
         end)
+    ncY = ncY - 26
 
-    MakeLbl(pageNC, 190, ncY - 4, "Spec")
-    specDD = MakeDropdown(pageNC, 210, ncY,
+    -- Sub-row B: Spec selector (disabled when mode is Automatically)
+    MakeLbl(pageNC, 30, ncY - 3, "Spec")
+    specDD = MakeDropdown(pageNC, 76, ncY,
         self.selectedSpec[characterKey] or "Select Spec",
         function()
             local opts = {{label = "Select Spec", value = "Select Spec"}}
@@ -1102,7 +1112,7 @@ function GuildNoteUpdater:CreateUI()
             end
             return opts
         end,
-        88,
+        135,
         function(val)
             local k = GuildNoteUpdater:GetCharacterKey()
             GuildNoteUpdater.selectedSpec[k] = val
@@ -1113,9 +1123,9 @@ function GuildNoteUpdater:CreateUI()
     if self.specUpdateMode[characterKey] == "Automatically" or not self.specUpdateMode[characterKey] then
         specDD:Disable()
     end
-    ncY = ncY - 30
+    ncY = ncY - 28
 
-    -- Show professions  [checkbox]
+    -- ── Show professions  [checkbox] ──
     MakeCB(pageNC, ncY, "Show professions",
         self.enableProfessions[characterKey] == true,
         function(val)
@@ -1126,7 +1136,7 @@ function GuildNoteUpdater:CreateUI()
         end)
     ncY = ncY - 26
 
-    -- Show main/alt  [checkbox]  [dropdown]
+    -- ── Show main / alt  [checkbox]  [None/Main/Alt dropdown — right-aligned] ──
     MakeCB(pageNC, ncY, "Show main / alt",
         self.enableMainAlt[characterKey] ~= false,
         function(val)
@@ -1136,7 +1146,7 @@ function GuildNoteUpdater:CreateUI()
             GuildNoteUpdater:UpdateGuildNote()
         end)
 
-    MakeDropdown(pageNC, 218, ncY,
+    MakeDropdown(pageNC, 175, ncY,
         self.mainOrAlt[characterKey] or "<None>",
         function()
             local opts = {}
@@ -1154,9 +1164,9 @@ function GuildNoteUpdater:CreateUI()
         end)
     ncY = ncY - 30
 
-    -- Format
-    MakeLbl(pageNC, 12, ncY - 4, "Format")
-    MakeDropdown(pageNC, 58, ncY,
+    -- ── Note format  [label + dropdown] ──
+    MakeLbl(pageNC, 12, ncY - 3, "Format")
+    MakeDropdown(pageNC, 60, ncY,
         self.noteFormat or "Standard",
         function()
             local opts = {}
@@ -1165,7 +1175,7 @@ function GuildNoteUpdater:CreateUI()
             end
             return opts
         end,
-        130,
+        148,
         function(val)
             GuildNoteUpdater.noteFormat = val
             GuildNoteUpdaterSettings.noteFormat = val
@@ -1173,8 +1183,8 @@ function GuildNoteUpdater:CreateUI()
         end)
     ncY = ncY - 30
 
-    -- Prefix editbox + (?) hint
-    MakeLbl(pageNC, 12, ncY - 4, "Prefix")
+    -- ── Note prefix  [label + editbox] ──
+    MakeLbl(pageNC, 12, ncY - 3, "Prefix")
     local notePrefixText = CreateFrame("EditBox", nil, pageNC, "InputBoxTemplate")
     notePrefixText:SetSize(120, 20)
     notePrefixText:SetPoint("TOPLEFT", pageNC, "TOPLEFT", 58, ncY)
