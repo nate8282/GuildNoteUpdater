@@ -284,6 +284,20 @@ function GuildNoteUpdater:UpdateNotePreview()
     if not previewText then return end
 
     local characterKey = self:GetCharacterKey()
+
+    -- When note is locked, show the actual current guild note for manual editing
+    if self.noteLocked and self.noteLocked[characterKey] then
+        local note = self.previousNote or ""
+        previewText:SetText(note)
+        local charCount = #note
+        local color
+        if charCount <= 24 then color = "|cFF00FF00"
+        elseif charCount <= MAX_NOTE_LENGTH then color = "|cFFFFFF00"
+        else color = "|cFFFF0000" end
+        charCountText:SetText(color .. charCount .. "/" .. MAX_NOTE_LENGTH .. "|r")
+        return
+    end
+
     local note = self:BuildNoteString(characterKey)
 
     if note then
@@ -523,6 +537,10 @@ function GuildNoteUpdater:CreateUI()
         edgeSize = 1,
     }
 
+    -- Forward declarations for cross-references between General page and preview bar
+    local lockCB         = nil  -- General page "Lock note" checkbox
+    local lockPreviewBtn = nil  -- Preview bar lock toggle button
+
     -- =========================================================
     -- MAIN FRAME
     -- =========================================================
@@ -569,16 +587,16 @@ function GuildNoteUpdater:CreateUI()
     titleDivider:SetHeight(1)
     titleDivider:SetColorTexture(0.102, 0.102, 0.188, 1.0)
 
-    -- Icon box
+    -- Icon box: uses the addon's icon texture
     local iconBox = CreateFrame("Frame", nil, titleBar, "BackdropTemplate")
     iconBox:SetSize(18, 18)
     iconBox:SetPoint("LEFT", titleBar, "LEFT", 10, 0)
     iconBox:SetBackdrop(solidBD)
     iconBox:SetBackdropColor(0.65, 0.52, 0.0, 1.0)
     iconBox:SetBackdropBorderColor(0.40, 0.32, 0.0, 1.0)
-    local iconLabel = iconBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    iconLabel:SetPoint("CENTER")
-    iconLabel:SetText("|cFF000000G|r")
+    local iconTex = iconBox:CreateTexture(nil, "ARTWORK")
+    iconTex:SetAllPoints(iconBox)
+    iconTex:SetTexture("Interface\\AddOns\\GuildNoteUpdater\\Icon")
 
     -- Title text
     local titleText = titleBar:CreateFontString(nil, "OVERLAY", "GameFontNormal")
@@ -619,7 +637,7 @@ function GuildNoteUpdater:CreateUI()
     -- SIDEBAR
     -- =========================================================
     local SIDEBAR_W  = 138
-    local PREVIEW_H  = 44
+    local PREVIEW_H  = 62   -- increased for two-row layout
     local TITLE_H    = 39   -- titleBar 34 + divider 1 + 4px gap
 
     local sidebar = CreateFrame("Frame", nil, frame, "BackdropTemplate")
@@ -804,59 +822,205 @@ function GuildNoteUpdater:CreateUI()
         div:SetColorTexture(0.102, 0.102, 0.188, 1.0)
     end
 
-    -- UIDropDownMenu wrapper: hides WoW's default textures, draws a clean dark backdrop
-    local ddSeq = 0
-    local specDropdown  -- forward declaration used in specUpdateDropdown's init fn
+    -- =========================================================
+    -- CUSTOM DROPDOWN FACTORY
+    -- =========================================================
 
-    local function MakeDD(parent, x, py, initFn, width, currentText)
-        ddSeq = ddSeq + 1
-        local ddName = "GNUDropdown" .. ddSeq
+    -- Shared dismisser: catches outside clicks to close any open dropdown list
+    local ddDismisser = CreateFrame("Frame", nil, UIParent)
+    ddDismisser:SetAllPoints(UIParent)
+    ddDismisser:SetFrameStrata("TOOLTIP")
+    ddDismisser:SetFrameLevel(499)
+    ddDismisser:EnableMouse(true)
+    ddDismisser:Hide()
+
+    local openDDList = nil
+    local function CloseDDList()
+        if openDDList then openDDList:Hide(); openDDList = nil end
+        ddDismisser:Hide()
+    end
+    ddDismisser:SetScript("OnMouseDown", CloseDDList)
+    frame:SetScript("OnHide", CloseDDList)
+
+    local specDD  -- forward declaration: referenced in specUpdateDD's onChange before specDD is created
+
+    -- Custom dropdown factory
+    -- parent     : parent frame
+    -- x, py      : TOPLEFT offset from parent (py is negative = downward)
+    -- initLabel  : initial display text
+    -- getOptions : function() → { {label, value}, ... }  called fresh each open
+    -- width      : pixel width of the widget
+    -- onChange   : function(value)  called when user picks an item
+    local function MakeDropdown(parent, x, py, initLabel, getOptions, width, onChange)
         local w = width or 110
 
-        local dd = CreateFrame("Frame", ddName, parent, "UIDropDownMenuTemplate")
-        dd:SetPoint("TOPLEFT", parent, "TOPLEFT", x, py + 8)
-        UIDropDownMenu_Initialize(dd, initFn)
-        UIDropDownMenu_SetWidth(dd, w)
-        UIDropDownMenu_SetText(dd, currentText)
+        local container = CreateFrame("Button", nil, parent, "BackdropTemplate")
+        container:SetPoint("TOPLEFT", parent, "TOPLEFT", x, py)
+        container:SetSize(w, 22)
+        container:SetBackdrop(solidBD)
+        container:SetBackdropColor(0.039, 0.039, 0.094, 1.0)
+        container:SetBackdropBorderColor(0.165, 0.165, 0.267, 1.0)
 
-        -- Hide the default WoW texture regions
-        for _, r in ipairs({dd:GetRegions()}) do
-            if r.GetObjectType and r:GetObjectType() == "Texture" then
-                r:SetAlpha(0)
+        local valText = container:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        valText:SetPoint("LEFT",  container, "LEFT",  7, 0)
+        valText:SetPoint("RIGHT", container, "RIGHT", -16, 0)
+        valText:SetJustifyH("LEFT")
+        valText:SetText(initLabel)
+        valText:SetTextColor(0.690, 0.690, 0.800)
+
+        local arrowText = container:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        arrowText:SetPoint("RIGHT", container, "RIGHT", -5, 0)
+        arrowText:SetText("|cFF44445Av|r")
+
+        -- Popup list (parented to UIParent so it always floats above everything)
+        local list = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
+        list:SetFrameStrata("TOOLTIP")
+        list:SetFrameLevel(500)
+        list:SetBackdrop(solidBD)
+        list:SetBackdropColor(0.027, 0.027, 0.063, 0.98)
+        list:SetBackdropBorderColor(0.165, 0.165, 0.267, 1.0)
+        list:Hide()
+
+        local selectedValue = initLabel
+        local itemPool = {}
+        local ITEM_H = 22
+        local PAD_V  = 4
+
+        local function PopulateList()
+            for _, btn in ipairs(itemPool) do btn:Hide() end
+            local opts = getOptions()
+
+            while #itemPool < #opts do
+                local btn = CreateFrame("Button", nil, list, "BackdropTemplate")
+                btn:SetHeight(ITEM_H)
+                btn:SetBackdrop(solidBD)
+                btn:SetBackdropColor(0, 0, 0, 0)
+                btn:SetBackdropBorderColor(0, 0, 0, 0)
+                local fs = btn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+                fs:SetPoint("LEFT",  btn, "LEFT",  8, 0)
+                fs:SetPoint("RIGHT", btn, "RIGHT", -8, 0)
+                fs:SetJustifyH("LEFT")
+                btn._fs = fs
+                btn:SetScript("OnEnter", function(self)
+                    self:SetBackdropColor(1.0, 0.820, 0.0, 0.10)
+                    self:SetBackdropBorderColor(0, 0, 0, 0)
+                end)
+                btn:SetScript("OnLeave", function(self)
+                    self:SetBackdropColor(0, 0, 0, 0)
+                    self:SetBackdropBorderColor(0, 0, 0, 0)
+                end)
+                table.insert(itemPool, btn)
+            end
+
+            for i, opt in ipairs(opts) do
+                local btn = itemPool[i]
+                btn:SetPoint("TOPLEFT",  list, "TOPLEFT",  1, -(PAD_V + (i - 1) * ITEM_H))
+                btn:SetPoint("TOPRIGHT", list, "TOPRIGHT", -1, -(PAD_V + (i - 1) * ITEM_H))
+                btn:SetHeight(ITEM_H)
+                btn:SetBackdropColor(0, 0, 0, 0)
+                btn:SetBackdropBorderColor(0, 0, 0, 0)
+                btn._fs:SetText(opt.label)
+                if opt.value == selectedValue then
+                    btn._fs:SetTextColor(1.0, 0.820, 0.0)
+                else
+                    btn._fs:SetTextColor(0.690, 0.690, 0.800)
+                end
+                btn:SetScript("OnClick", function()
+                    selectedValue = opt.value
+                    valText:SetText(opt.label)
+                    CloseDDList()
+                    if onChange then onChange(opt.value) end
+                end)
+                btn:Show()
+            end
+            list:SetWidth(w)
+            list:SetHeight(PAD_V * 2 + #opts * ITEM_H)
+        end
+
+        container:SetScript("OnClick", function()
+            if not container._enabled then return end
+            if openDDList == list then CloseDDList(); return end
+            CloseDDList()
+            PopulateList()
+            list:ClearAllPoints()
+            list:SetPoint("TOPLEFT", container, "BOTTOMLEFT", 0, -2)
+            list:Show()
+            openDDList = list
+            ddDismisser:Show()
+        end)
+
+        container:SetScript("OnEnter", function()
+            if container._enabled then
+                container:SetBackdropBorderColor(0.265, 0.265, 0.400, 1.0)
+            end
+        end)
+        container:SetScript("OnLeave", function()
+            if container._enabled then
+                container:SetBackdropBorderColor(0.165, 0.165, 0.267, 1.0)
+            end
+        end)
+
+        container._enabled = true
+        function container:Enable()
+            self._enabled = true
+            valText:SetTextColor(0.690, 0.690, 0.800)
+            arrowText:SetText("|cFF44445Av|r")
+            self:SetBackdropColor(0.039, 0.039, 0.094, 1.0)
+            self:SetBackdropBorderColor(0.165, 0.165, 0.267, 1.0)
+        end
+        function container:Disable()
+            self._enabled = false
+            valText:SetTextColor(0.200, 0.200, 0.300)
+            arrowText:SetText("|cFF1A1A2Av|r")
+            self:SetBackdropColor(0.025, 0.025, 0.060, 1.0)
+            self:SetBackdropBorderColor(0.100, 0.100, 0.160, 1.0)
+            if openDDList == list then CloseDDList() end
+        end
+        function container:GetValue() return selectedValue end
+        function container:SetValue(v, lbl)
+            selectedValue = v
+            valText:SetText(lbl or v)
+        end
+
+        return container
+    end
+
+    -- =========================================================
+    -- SHARED LOCK STATE HANDLER
+    -- Updates both the General page checkbox and the preview bar lock button
+    -- =========================================================
+    local function UpdateLockState(val)
+        local key = GuildNoteUpdater:GetCharacterKey()
+        GuildNoteUpdater.noteLocked[key] = val
+        GuildNoteUpdaterSettings.noteLocked = GuildNoteUpdater.noteLocked
+
+        -- Sync the General page checkbox
+        if lockCB then lockCB:SetChecked(val) end
+
+        -- Update preview EditBox editability
+        if previewText then
+            if val then
+                previewText:SetEnabled(true)
+                previewText:SetTextColor(1.0, 0.820, 0.0)
+                -- Show the actual current note for manual editing
+                previewText:SetText(GuildNoteUpdater.previousNote or "")
+            else
+                previewText:SetEnabled(false)
+                previewText:SetTextColor(1.0, 0.820, 0.0)
+                GuildNoteUpdater:UpdateNotePreview()
             end
         end
 
-        -- Dark background fill
-        local bg = dd:CreateTexture(nil, "BACKGROUND")
-        bg:SetPoint("TOPLEFT",     dd, "TOPLEFT",     0,  -2)
-        bg:SetSize(w + 20, 22)
-        bg:SetColorTexture(0.039, 0.039, 0.094, 1.0)
-
-        -- 1px border lines
-        local function MakeLine(from, to)
-            local t = dd:CreateTexture(nil, "BORDER")
-            t:SetPoint(from[1], bg, from[1], from[2], from[3])
-            t:SetPoint(to[1],   bg, to[1],   to[2],   to[3])
-            t:SetColorTexture(0.165, 0.165, 0.267, 1.0)
-            return t
+        -- Update lock button visual
+        if lockPreviewBtn then
+            if val then
+                lockPreviewBtn:SetBackdropColor(1.0, 0.820, 0.0, 0.15)
+                lockPreviewBtn:SetBackdropBorderColor(1.0, 0.820, 0.0, 0.60)
+            else
+                lockPreviewBtn:SetBackdropColor(0.039, 0.039, 0.094, 1.0)
+                lockPreviewBtn:SetBackdropBorderColor(0.165, 0.165, 0.267, 1.0)
+            end
         end
-        MakeLine({"TOPLEFT", 0, 0},    {"TOPRIGHT",    0, 0}   ):SetHeight(1)
-        MakeLine({"BOTTOMLEFT", 0, 0}, {"BOTTOMRIGHT", 0, 0}   ):SetHeight(1)
-        MakeLine({"TOPLEFT", 0, 0},    {"BOTTOMLEFT",  0, 0}   ):SetWidth(1)
-        MakeLine({"TOPRIGHT", 0, 0},   {"BOTTOMRIGHT", 0, 0}   ):SetWidth(1)
-
-        -- Arrow glyph
-        local arrow = dd:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-        arrow:SetPoint("TOPRIGHT", bg, "TOPRIGHT", -4, -4)
-        arrow:SetText("|cFF44445Av|r")
-
-        -- Text colour
-        local ddText = _G[ddName .. "Text"]
-        if ddText then
-            ddText:SetTextColor(0.690, 0.690, 0.800)
-        end
-
-        return dd
     end
 
     -- =========================================================
@@ -876,24 +1040,22 @@ function GuildNoteUpdater:CreateUI()
             GuildNoteUpdater:UpdateGuildNote()
         end)
 
-    local itemLevelDropdown = MakeDD(pageNC, 218, ncY,
-        function(dd, level)
-            local key = GuildNoteUpdater:GetCharacterKey()
-            local info = UIDropDownMenu_CreateInfo()
+    MakeDropdown(pageNC, 218, ncY,
+        self.itemLevelType[characterKey] or "Overall",
+        function()
+            local opts = {}
             for _, opt in ipairs({"Overall", "Equipped"}) do
-                info.text, info.value = opt, opt
-                info.func = function(btn)
-                    local k = GuildNoteUpdater:GetCharacterKey()
-                    GuildNoteUpdater.itemLevelType[k] = btn.value
-                    UIDropDownMenu_SetText(itemLevelDropdown, btn.value)
-                    GuildNoteUpdaterSettings.itemLevelType = GuildNoteUpdater.itemLevelType
-                    GuildNoteUpdater:UpdateGuildNote()
-                end
-                info.checked = (GuildNoteUpdater.itemLevelType[key] == opt)
-                UIDropDownMenu_AddButton(info, level)
+                table.insert(opts, {label = opt, value = opt})
             end
+            return opts
         end,
-        90, self.itemLevelType[characterKey] or "Overall")
+        90,
+        function(val)
+            local k = GuildNoteUpdater:GetCharacterKey()
+            GuildNoteUpdater.itemLevelType[k] = val
+            GuildNoteUpdaterSettings.itemLevelType = GuildNoteUpdater.itemLevelType
+            GuildNoteUpdater:UpdateGuildNote()
+        end)
     ncY = ncY - 26
 
     -- Show spec  [checkbox]
@@ -909,56 +1071,47 @@ function GuildNoteUpdater:CreateUI()
 
     -- Update / Spec dropdowns (indented row)
     MakeLbl(pageNC, 28, ncY - 4, "Update")
-    local specUpdateDropdown = MakeDD(pageNC, 68, ncY,
-        function(dd, level)
-            local key = GuildNoteUpdater:GetCharacterKey()
-            local info = UIDropDownMenu_CreateInfo()
+    MakeDropdown(pageNC, 68, ncY,
+        self.specUpdateMode[characterKey] or "Automatically",
+        function()
+            local opts = {}
             for _, opt in ipairs({"Automatically", "Manually"}) do
-                info.text, info.value = opt, opt
-                info.func = function(btn)
-                    local k = GuildNoteUpdater:GetCharacterKey()
-                    GuildNoteUpdater.specUpdateMode[k] = btn.value
-                    UIDropDownMenu_SetText(specUpdateDropdown, btn.value)
-                    GuildNoteUpdaterSettings.specUpdateMode = GuildNoteUpdater.specUpdateMode
-                    if btn.value == "Manually" then
-                        UIDropDownMenu_EnableDropDown(specDropdown)
-                    else
-                        UIDropDownMenu_DisableDropDown(specDropdown)
-                    end
-                    GuildNoteUpdater:UpdateGuildNote()
-                end
-                info.checked = (GuildNoteUpdater.specUpdateMode[key] == opt)
-                UIDropDownMenu_AddButton(info, level)
+                table.insert(opts, {label = opt, value = opt})
             end
+            return opts
         end,
-        100, self.specUpdateMode[characterKey] or "Automatically")
+        100,
+        function(val)
+            local k = GuildNoteUpdater:GetCharacterKey()
+            GuildNoteUpdater.specUpdateMode[k] = val
+            GuildNoteUpdaterSettings.specUpdateMode = GuildNoteUpdater.specUpdateMode
+            if val == "Manually" then specDD:Enable() else specDD:Disable() end
+            GuildNoteUpdater:UpdateGuildNote()
+        end)
 
     MakeLbl(pageNC, 190, ncY - 4, "Spec")
-    specDropdown = MakeDD(pageNC, 210, ncY,
-        function(dd, level)
-            local key = GuildNoteUpdater:GetCharacterKey()
-            local info = UIDropDownMenu_CreateInfo()
-            info.text, info.value = "Select Spec", "Select Spec"
-            info.func = function(btn)
-                local k = GuildNoteUpdater:GetCharacterKey()
-                GuildNoteUpdater.selectedSpec[k] = btn.value
-                UIDropDownMenu_SetText(specDropdown, btn.value)
-                GuildNoteUpdaterSettings.selectedSpec = GuildNoteUpdater.selectedSpec
-                GuildNoteUpdater:UpdateGuildNote()
-            end
-            info.checked = (GuildNoteUpdater.selectedSpec[key] == "Select Spec")
-            UIDropDownMenu_AddButton(info, level)
+    specDD = MakeDropdown(pageNC, 210, ncY,
+        self.selectedSpec[characterKey] or "Select Spec",
+        function()
+            local opts = {{label = "Select Spec", value = "Select Spec"}}
             for i = 1, GetNumSpecializations() do
                 local _, specName = GetSpecializationInfo(i)
-                info.text, info.value = specName, specName
-                info.checked = (specName == GuildNoteUpdater.selectedSpec[key])
-                UIDropDownMenu_AddButton(info, level)
+                if specName then
+                    table.insert(opts, {label = specName, value = specName})
+                end
             end
+            return opts
         end,
-        88, self.selectedSpec[characterKey] or "Select Spec")
+        88,
+        function(val)
+            local k = GuildNoteUpdater:GetCharacterKey()
+            GuildNoteUpdater.selectedSpec[k] = val
+            GuildNoteUpdaterSettings.selectedSpec = GuildNoteUpdater.selectedSpec
+            GuildNoteUpdater:UpdateGuildNote()
+        end)
 
     if self.specUpdateMode[characterKey] == "Automatically" or not self.specUpdateMode[characterKey] then
-        UIDropDownMenu_DisableDropDown(specDropdown)
+        specDD:Disable()
     end
     ncY = ncY - 30
 
@@ -983,44 +1136,41 @@ function GuildNoteUpdater:CreateUI()
             GuildNoteUpdater:UpdateGuildNote()
         end)
 
-    local mainAltDropdown = MakeDD(pageNC, 218, ncY,
-        function(dd, level)
-            local key = GuildNoteUpdater:GetCharacterKey()
-            local info = UIDropDownMenu_CreateInfo()
+    MakeDropdown(pageNC, 218, ncY,
+        self.mainOrAlt[characterKey] or "<None>",
+        function()
+            local opts = {}
             for _, opt in ipairs({"<None>", "Main", "Alt"}) do
-                info.text, info.value = opt, opt
-                info.func = function(btn)
-                    local k = GuildNoteUpdater:GetCharacterKey()
-                    GuildNoteUpdater.mainOrAlt[k] = btn.value
-                    UIDropDownMenu_SetText(mainAltDropdown, btn.value)
-                    GuildNoteUpdaterSettings.mainOrAlt = GuildNoteUpdater.mainOrAlt
-                    GuildNoteUpdater:UpdateGuildNote()
-                end
-                info.checked = (GuildNoteUpdater.mainOrAlt[key] == opt)
-                UIDropDownMenu_AddButton(info, level)
+                table.insert(opts, {label = opt, value = opt})
             end
+            return opts
         end,
-        90, self.mainOrAlt[characterKey] or "<None>")
+        90,
+        function(val)
+            local k = GuildNoteUpdater:GetCharacterKey()
+            GuildNoteUpdater.mainOrAlt[k] = val
+            GuildNoteUpdaterSettings.mainOrAlt = GuildNoteUpdater.mainOrAlt
+            GuildNoteUpdater:UpdateGuildNote()
+        end)
     ncY = ncY - 30
 
     -- Format
     MakeLbl(pageNC, 12, ncY - 4, "Format")
-    local noteFormatDropdown = MakeDD(pageNC, 58, ncY,
-        function(dd, level)
-            local info = UIDropDownMenu_CreateInfo()
+    MakeDropdown(pageNC, 58, ncY,
+        self.noteFormat or "Standard",
+        function()
+            local opts = {}
             for _, opt in ipairs({"Standard", "Compact", "Professions First"}) do
-                info.text, info.value = opt, opt
-                info.func = function(btn)
-                    GuildNoteUpdater.noteFormat = btn.value
-                    UIDropDownMenu_SetText(noteFormatDropdown, btn.value)
-                    GuildNoteUpdaterSettings.noteFormat = btn.value
-                    GuildNoteUpdater:UpdateGuildNote()
-                end
-                info.checked = (GuildNoteUpdater.noteFormat == opt)
-                UIDropDownMenu_AddButton(info, level)
+                table.insert(opts, {label = opt, value = opt})
             end
+            return opts
         end,
-        130, self.noteFormat or "Standard")
+        130,
+        function(val)
+            GuildNoteUpdater.noteFormat = val
+            GuildNoteUpdaterSettings.noteFormat = val
+            GuildNoteUpdater:UpdateGuildNote()
+        end)
     ncY = ncY - 30
 
     -- Prefix editbox + (?) hint
@@ -1075,12 +1225,10 @@ function GuildNoteUpdater:CreateUI()
         end)
     gY = gY - 26
 
-    MakeCB(pageG, gY, "Lock note (prevent auto-updates)",
+    lockCB = MakeCB(pageG, gY, "Lock note (prevent auto-updates)",
         self.noteLocked[characterKey] == true,
         function(val)
-            local key = GuildNoteUpdater:GetCharacterKey()
-            GuildNoteUpdater.noteLocked[key] = val
-            GuildNoteUpdaterSettings.noteLocked = GuildNoteUpdater.noteLocked
+            UpdateLockState(val)
         end)
     gY = gY - 26
 
@@ -1097,21 +1245,28 @@ function GuildNoteUpdater:CreateUI()
     gY = gY - 30
 
     MakeLbl(pageG, 12, gY - 4, "Update trigger")
-    local updateTriggerDropdown = MakeDD(pageG, 100, gY,
-        function(dd, level)
-            local info = UIDropDownMenu_CreateInfo()
+    MakeDropdown(pageG, 100, gY,
+        self.updateTrigger or "On Events",
+        function()
+            local opts = {}
             for _, opt in ipairs({"On Events", "On Login Only", "Manual Only"}) do
-                info.text, info.value = opt, opt
-                info.func = function(btn)
-                    GuildNoteUpdater.updateTrigger = btn.value
-                    UIDropDownMenu_SetText(updateTriggerDropdown, btn.value)
-                    GuildNoteUpdaterSettings.updateTrigger = btn.value
-                end
-                info.checked = (GuildNoteUpdater.updateTrigger == opt)
-                UIDropDownMenu_AddButton(info, level)
+                table.insert(opts, {label = opt, value = opt})
             end
+            return opts
         end,
-        110, self.updateTrigger or "On Events")
+        110,
+        function(val)
+            GuildNoteUpdater.updateTrigger = val
+            GuildNoteUpdaterSettings.updateTrigger = val
+        end)
+    gY = gY - 30
+
+    MakeCB(pageG, gY, "Show update notification",
+        self.showUpdateNotification ~= false,
+        function(val)
+            GuildNoteUpdater.showUpdateNotification = val
+            GuildNoteUpdaterSettings.showUpdateNotification = val
+        end)
 
     -- =========================================================
     -- PAGE: Advanced
@@ -1135,14 +1290,6 @@ function GuildNoteUpdater:CreateUI()
             GuildNoteUpdater.enableTooltipParsing = val
             GuildNoteUpdaterSettings.enableTooltipParsing = val
         end)
-    aY = aY - 26
-
-    MakeCB(pageA, aY, "Show update notification",
-        self.showUpdateNotification ~= false,
-        function(val)
-            GuildNoteUpdater.showUpdateNotification = val
-            GuildNoteUpdaterSettings.showUpdateNotification = val
-        end)
 
     -- =========================================================
     -- ACTIVATE DEFAULT PAGE
@@ -1150,7 +1297,9 @@ function GuildNoteUpdater:CreateUI()
     ActivateNav("Note Content")
 
     -- =========================================================
-    -- PREVIEW BAR (pinned at bottom of frame)
+    -- PREVIEW BAR  (pinned at bottom, two-row layout)
+    -- Row 1 (top):    "NOTE PREVIEW" label
+    -- Row 2 (bottom): [editable note text] [lock btn] [charcount] [Force Update]
     -- =========================================================
     local previewBar = CreateFrame("Frame", nil, frame, "BackdropTemplate")
     previewBar:SetPoint("BOTTOMLEFT",  frame, "BOTTOMLEFT",  4, 4)
@@ -1166,32 +1315,15 @@ function GuildNoteUpdater:CreateUI()
     previewTopLine:SetHeight(1)
     previewTopLine:SetColorTexture(0.102, 0.102, 0.188, 1.0)
 
+    -- Row 1: "NOTE PREVIEW" label (top-left)
     local previewLbl = previewBar:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    previewLbl:SetPoint("LEFT", previewBar, "LEFT", 10, 9)
-    previewLbl:SetText("|cFF3A3A5APREVIEW|r")
+    previewLbl:SetPoint("TOPLEFT", previewBar, "TOPLEFT", 10, -7)
+    previewLbl:SetText("|cFF3A3A5ANOTE PREVIEW|r")
 
-    charCountText = previewBar:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    charCountText:SetPoint("RIGHT", previewBar, "RIGHT", -8, 9)
-    charCountText:SetJustifyH("RIGHT")
-
-    local previewBox = CreateFrame("Frame", nil, previewBar, "BackdropTemplate")
-    previewBox:SetPoint("BOTTOMLEFT",  previewBar, "BOTTOMLEFT",  8,   5)
-    previewBox:SetPoint("BOTTOMRIGHT", previewBar, "BOTTOMRIGHT", -118, 5)
-    previewBox:SetHeight(22)
-    previewBox:SetBackdrop(solidBD)
-    previewBox:SetBackdropColor(0.027, 0.027, 0.063, 1.0)
-    previewBox:SetBackdropBorderColor(0.102, 0.102, 0.188, 1.0)
-
-    previewText = previewBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    previewText:SetPoint("LEFT",  previewBox, "LEFT",  8, 0)
-    previewText:SetPoint("RIGHT", previewBox, "RIGHT", -8, 0)
-    previewText:SetJustifyH("LEFT")
-    previewText:SetTextColor(1.0, 0.820, 0.0)
-
-    -- Force Update button
+    -- Force Update button  (bottom-right, anchored first so others can left-anchor off it)
     local forceBtn = CreateFrame("Button", nil, previewBar, "BackdropTemplate")
-    forceBtn:SetSize(108, 22)
-    forceBtn:SetPoint("BOTTOMRIGHT", previewBar, "BOTTOMRIGHT", -6, 5)
+    forceBtn:SetSize(108, 24)
+    forceBtn:SetPoint("BOTTOMRIGHT", previewBar, "BOTTOMRIGHT", -6, 6)
     forceBtn:SetBackdrop(solidBD)
     forceBtn:SetBackdropColor(0.165, 0.140, 0.0, 1.0)
     forceBtn:SetBackdropBorderColor(1.0, 0.820, 0.0, 0.25)
@@ -1213,6 +1345,99 @@ function GuildNoteUpdater:CreateUI()
         forceBtn:SetBackdropBorderColor(1.0, 0.820, 0.0, 0.25)
         fTxt:SetTextColor(0.784, 0.651, 0.0)
     end)
+
+    -- Char count  (to the left of Force Update, same row)
+    charCountText = previewBar:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    charCountText:SetPoint("RIGHT", forceBtn, "LEFT", -8, 0)
+    charCountText:SetJustifyH("RIGHT")
+    charCountText:SetWidth(46)
+
+    -- Lock button  (to the left of char count)
+    lockPreviewBtn = CreateFrame("Button", nil, previewBar, "BackdropTemplate")
+    lockPreviewBtn:SetSize(24, 24)
+    lockPreviewBtn:SetPoint("RIGHT", charCountText, "LEFT", -6, 0)
+    lockPreviewBtn:SetBackdrop(solidBD)
+    lockPreviewBtn:SetBackdropColor(0.039, 0.039, 0.094, 1.0)
+    lockPreviewBtn:SetBackdropBorderColor(0.165, 0.165, 0.267, 1.0)
+    local lockTex = lockPreviewBtn:CreateTexture(nil, "ARTWORK")
+    lockTex:SetSize(14, 14)
+    lockTex:SetPoint("CENTER")
+    lockTex:SetTexture("Interface\\PaperDollInfoFrame\\GearSetLock")
+    lockPreviewBtn:SetScript("OnClick", function()
+        local key = GuildNoteUpdater:GetCharacterKey()
+        local newVal = not (GuildNoteUpdater.noteLocked and GuildNoteUpdater.noteLocked[key])
+        UpdateLockState(newVal)
+    end)
+    lockPreviewBtn:SetScript("OnEnter", function()
+        GameTooltip:SetOwner(lockPreviewBtn, "ANCHOR_TOP")
+        GameTooltip:SetText("Lock Note", 1, 0.82, 0)
+        GameTooltip:AddLine("Prevents auto-updates from overwriting your note.\nWhen locked, you can type directly in the preview box.", 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+    lockPreviewBtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
+    -- Apply initial lock button visual state
+    if self.noteLocked[characterKey] then
+        lockPreviewBtn:SetBackdropColor(1.0, 0.820, 0.0, 0.15)
+        lockPreviewBtn:SetBackdropBorderColor(1.0, 0.820, 0.0, 0.60)
+    end
+
+    -- Preview box  (from left edge to just left of the lock button)
+    local previewBox = CreateFrame("Frame", nil, previewBar, "BackdropTemplate")
+    previewBox:SetPoint("BOTTOMLEFT",  previewBar, "BOTTOMLEFT", 8, 6)
+    previewBox:SetPoint("BOTTOMRIGHT", lockPreviewBtn, "BOTTOMLEFT", -6, 0)
+    previewBox:SetHeight(24)
+    previewBox:SetBackdrop(solidBD)
+    previewBox:SetBackdropColor(0.027, 0.027, 0.063, 1.0)
+    previewBox:SetBackdropBorderColor(0.102, 0.102, 0.188, 1.0)
+
+    -- EditBox inside preview box (disabled/read-only by default, enabled when note is locked)
+    local previewEB = CreateFrame("EditBox", nil, previewBox)
+    previewEB:SetPoint("LEFT",  previewBox, "LEFT",  6, 0)
+    previewEB:SetPoint("RIGHT", previewBox, "RIGHT", -6, 0)
+    previewEB:SetHeight(20)
+    previewEB:SetAutoFocus(false)
+    previewEB:SetEnabled(false)
+    previewEB:SetFontObject("GameFontNormalSmall")
+    previewEB:SetTextColor(1.0, 0.820, 0.0)
+    previewEB:SetTextInsets(0, 0, 0, 0)
+    previewEB:SetMaxLetters(MAX_NOTE_LENGTH)
+    previewEB:SetCursorColor(1.0, 0.820, 0.0, 1.0)
+
+    local function SaveLockedNote(eb)
+        local key = GuildNoteUpdater:GetCharacterKey()
+        if not GuildNoteUpdater.noteLocked or not GuildNoteUpdater.noteLocked[key] then
+            eb:ClearFocus()
+            return
+        end
+        local newNote = eb:GetText()
+        if #newNote > MAX_NOTE_LENGTH then
+            newNote = string.sub(newNote, 1, MAX_NOTE_LENGTH)
+            eb:SetText(newNote)
+        end
+        local guildIndex = GuildNoteUpdater:GetGuildIndexForPlayer()
+        if guildIndex and newNote ~= "" then
+            GuildRosterSetPublicNote(guildIndex, newNote)
+            GuildNoteUpdater.previousNote = newNote
+        end
+        GuildNoteUpdater:UpdateNotePreview()
+        eb:ClearFocus()
+    end
+    previewEB:SetScript("OnEnterPressed", SaveLockedNote)
+    previewEB:SetScript("OnEditFocusLost", SaveLockedNote)
+    previewEB:SetScript("OnEscapePressed", function(eb)
+        eb:SetText(GuildNoteUpdater.previousNote or "")
+        eb:ClearFocus()
+    end)
+
+    -- Apply initial locked state to EditBox
+    if self.noteLocked[characterKey] then
+        previewEB:SetEnabled(true)
+        previewEB:SetText(self.previousNote or "")
+    end
+
+    -- Point the module-level reference at the EditBox so UpdateNotePreview works
+    previewText = previewEB
 
     self:UpdateNotePreview()
 
