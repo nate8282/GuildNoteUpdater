@@ -2,6 +2,17 @@
 
 All notable changes to GuildNoteUpdater are documented here.
 
+## [1.13.0] - 2026-02-26
+
+### Added
+- **Note format templates** — new "Note Format" dropdown in settings with three options: Standard (default, unchanged behavior), Compact (single-char M/A, 4-char spec), and Professions First (professions before ilvl)
+- **Alt registry** — `/gnu setmain <MainName>` links the current character to a main; hovering an Alt-tagged guild member in tooltips now shows a `Main: <name>` line if registered
+- **`/gnu alts`** — lists all alt → main mappings
+- **`/gnu alts clear`** — wipes the alt registry
+- **Roster class colors** — character names in `/gnu roster` output are now colored by WoW class color
+
+---
+
 ## [1.12.0] - 2026-02-25
 
 ### Added
