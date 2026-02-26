@@ -397,7 +397,7 @@ local function PrintRosterSummary(mainsOnly)
         local members = {}
 
         for i = 1, GetNumGuildMembers() do
-            local fullName, _, _, _, _, _, note = GetGuildRosterInfo(i)
+            local fullName, _, _, _, _, _, note, _, _, _, class = GetGuildRosterInfo(i)
             if fullName then
                 totalMembers = totalMembers + 1
                 local parsed = GuildNoteUpdater:ParseGuildNote(note)
@@ -412,6 +412,7 @@ local function PrintRosterSummary(mainsOnly)
                         spec = parsed.spec,
                         profs = parsed.professions,
                         mainAlt = parsed.mainAlt,
+                        class = class,
                     })
                 end
             end
@@ -452,7 +453,12 @@ local function PrintRosterSummary(mainsOnly)
             if m.profs then table.insert(parts, table.concat(m.profs, "/")) end
             if m.mainAlt then table.insert(parts, m.mainAlt) end
             local detail = #parts > 0 and ("  " .. table.concat(parts, " | ")) or ""
-            print(string.format("  %s — %d%s", m.name, m.ilvl, detail))
+            local nameColor = "|cFFFFFFFF"
+            if m.class and RAID_CLASS_COLORS and RAID_CLASS_COLORS[m.class] then
+                local c = RAID_CLASS_COLORS[m.class]
+                nameColor = string.format("|cFF%02X%02X%02X", math.floor(c.r * 255), math.floor(c.g * 255), math.floor(c.b * 255))
+            end
+            print(string.format("  %s%s|r — %d%s", nameColor, m.name, m.ilvl, detail))
         end
     end)
 end

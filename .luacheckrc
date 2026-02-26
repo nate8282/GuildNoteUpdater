@@ -74,6 +74,9 @@ read_globals = {
     "C_Timer",
     "strsplit",
     "strtrim",
+
+    -- Class colors
+    "RAID_CLASS_COLORS",
 }
 
 -- Busted test files mock the entire WoW API as globals
@@ -95,6 +98,7 @@ files["spec/**"] = {
         "GameTooltip", "TooltipDataProcessor", "Enum",
         "InCombatLockdown",
         "Minimap", "GetCursorPosition",
+        "RAID_CLASS_COLORS",
     },
     ignore = {
         "211",  -- Unused local variable (mock data)
@@ -130,6 +134,7 @@ files["tests/**"] = {
         "GameTooltip", "TooltipDataProcessor", "Enum",
         "InCombatLockdown",
         "Minimap", "GetCursorPosition",
+        "RAID_CLASS_COLORS",
     },
     ignore = { "211", "212", "213", "311" },
     read_globals = { "dofile", "setmetatable", "os" },
