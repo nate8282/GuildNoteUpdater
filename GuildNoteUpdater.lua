@@ -442,8 +442,9 @@ local function PrintRosterSummary(mainsOnly)
         local avgStr = ilvlCount > 0 and tostring(math.floor(ilvlSum / ilvlCount)) or "N/A"
 
         local header = mainsOnly and "Mains Only" or "All"
-        print(string.format("|cFF00FF00[GNU] Roster (%s)|r  %d/%d w/notes | avg %s ilvl | %d Mains | %d Alts",
-            header, #members, totalMembers, avgStr, mainCount, altCount))
+        print(string.format("|cFF00FF00===  GNU Roster: %s  ===|r", header))
+        print(string.format("|cFFFFD100  %d/%d w/notes  |  avg %s ilvl  |  %d Mains  |  %d Alts|r",
+            #members, totalMembers, avgStr, mainCount, altCount))
 
         for _, m in ipairs(members) do
             local parts = {}
