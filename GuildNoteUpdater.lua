@@ -270,6 +270,13 @@ end
 
 -- Builds and sets the guild note from current character data
 function GuildNoteUpdater:UpdateGuildNote()
+    if InCombatLockdown() then
+        self:DebugPrint("In combat lockdown, deferring note update")
+        self.pendingCombatUpdate = true
+        self:RegisterEvent("PLAYER_REGEN_ENABLED")
+        return
+    end
+
     local characterKey = self:GetCharacterKey()
     local newNote = self:BuildNoteString(characterKey)
 
@@ -632,6 +639,14 @@ function GuildNoteUpdater:OnEvent(event, arg1)
                 if IsInGuild() and GetNumGuildMembers() > 0 then
                     GuildNoteUpdater:UpdateGuildNote()
                 end
+            end)
+        end
+    elseif event == "PLAYER_REGEN_ENABLED" then
+        if self.pendingCombatUpdate then
+            self.pendingCombatUpdate = false
+            self:UnregisterEvent("PLAYER_REGEN_ENABLED")
+            C_Timer.After(DEBOUNCE_DELAY, function()
+                if IsInGuild() then GuildNoteUpdater:UpdateGuildNote() end
             end)
         end
     elseif event == "PLAYER_EQUIPMENT_CHANGED" or event == "ACTIVE_TALENT_GROUP_CHANGED" then

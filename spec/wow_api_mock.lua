@@ -20,6 +20,7 @@ local MockData = {
         },
     },
     professions = { [1] = { name = "Leatherworking" }, [2] = { name = "Skinning" } },
+    inCombat = false,
     updatedNotes = {},
     tooltipUnit = nil,
     tooltipLines = {},
@@ -99,6 +100,7 @@ function GuildRosterSetPublicNote(i, note)
     end
 end
 function IsInGuild() return true end
+function InCombatLockdown() return MockData.inCombat or false end
 
 -- Character info
 function GetAverageItemLevel() return MockData.itemLevel.overall, MockData.itemLevel.equipped, MockData.itemLevel.equipped end

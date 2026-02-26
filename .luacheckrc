@@ -61,6 +61,9 @@ read_globals = {
     "TooltipDataProcessor",
     "Enum",
 
+    -- Combat
+    "InCombatLockdown",
+
     -- Utility
     "C_Timer",
     "strsplit",
@@ -84,6 +87,7 @@ files["spec/**"] = {
         "C_Timer", "C_GuildInfo", "SlashCmdList",
         "GuildNoteUpdater", "GuildNoteUpdaterSettings", "MockData",
         "GameTooltip", "TooltipDataProcessor", "Enum",
+        "InCombatLockdown",
     },
     ignore = {
         "211",  -- Unused local variable (mock data)
@@ -117,6 +121,7 @@ files["tests/**"] = {
         "C_Timer", "C_GuildInfo", "SlashCmdList",
         "GuildNoteUpdater", "GuildNoteUpdaterSettings",
         "GameTooltip", "TooltipDataProcessor", "Enum",
+        "InCombatLockdown",
     },
     ignore = { "211", "212", "213", "311" },
     read_globals = { "dofile", "setmetatable", "os" },
