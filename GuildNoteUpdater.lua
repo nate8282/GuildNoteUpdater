@@ -186,18 +186,39 @@ function GuildNoteUpdater:BuildNoteString(characterKey)
         if notePrefix == "" then notePrefix = nil end
     end
 
+    local noteFormat = self.noteFormat or "Standard"
+
+    -- Compact format: shorten main/alt and spec up front
+    local mainAltDisplay = mainOrAlt
+    local specDisplay = spec
+    if noteFormat == "Compact" then
+        if mainAltDisplay == "Main" then mainAltDisplay = "M"
+        elseif mainAltDisplay == "Alt" then mainAltDisplay = "A" end
+        if specDisplay then specDisplay = string.sub(specDisplay, 1, 4) end
+    end
+
     local noteParts = {}
     if notePrefix then
         table.insert(noteParts, notePrefix)
         table.insert(noteParts, "-")
     end
-    if showItemLevel then table.insert(noteParts, flooredItemLevel) end
-    if spec then table.insert(noteParts, spec) end
-    if self.enableProfessions[characterKey] then
-        if profession1 then table.insert(noteParts, profession1) end
-        if profession2 then table.insert(noteParts, profession2) end
+    if noteFormat == "Professions First" then
+        if self.enableProfessions[characterKey] then
+            if profession1 then table.insert(noteParts, profession1) end
+            if profession2 then table.insert(noteParts, profession2) end
+        end
+        if showItemLevel then table.insert(noteParts, flooredItemLevel) end
+        if specDisplay then table.insert(noteParts, specDisplay) end
+        if mainAltDisplay then table.insert(noteParts, mainAltDisplay) end
+    else -- Standard and Compact share the same field order
+        if showItemLevel then table.insert(noteParts, flooredItemLevel) end
+        if specDisplay then table.insert(noteParts, specDisplay) end
+        if self.enableProfessions[characterKey] then
+            if profession1 then table.insert(noteParts, profession1) end
+            if profession2 then table.insert(noteParts, profession2) end
+        end
+        if mainAltDisplay then table.insert(noteParts, mainAltDisplay) end
     end
-    if mainOrAlt then table.insert(noteParts, mainOrAlt) end
 
     local newNote = safeTrim(table.concat(noteParts, " ")) or ""
 
@@ -211,13 +232,23 @@ function GuildNoteUpdater:BuildNoteString(characterKey)
             table.insert(noteParts, string.sub(notePrefix, 1, 4))
             table.insert(noteParts, "-")
         end
-        if showItemLevel then table.insert(noteParts, flooredItemLevel) end
-        if spec then table.insert(noteParts, string.sub(spec, 1, 4)) end
-        if self.enableProfessions[characterKey] then
-            if profession1 then table.insert(noteParts, string.sub(profession1, 1, 2)) end
-            if profession2 then table.insert(noteParts, string.sub(profession2, 1, 2)) end
+        if noteFormat == "Professions First" then
+            if self.enableProfessions[characterKey] then
+                if profession1 then table.insert(noteParts, string.sub(profession1, 1, 2)) end
+                if profession2 then table.insert(noteParts, string.sub(profession2, 1, 2)) end
+            end
+            if showItemLevel then table.insert(noteParts, flooredItemLevel) end
+            if spec then table.insert(noteParts, string.sub(spec, 1, 4)) end
+            if mainOrAlt then table.insert(noteParts, string.sub(mainOrAlt, 1, 1)) end
+        else -- Standard and Compact
+            if showItemLevel then table.insert(noteParts, flooredItemLevel) end
+            if spec then table.insert(noteParts, string.sub(spec, 1, 4)) end
+            if self.enableProfessions[characterKey] then
+                if profession1 then table.insert(noteParts, string.sub(profession1, 1, 2)) end
+                if profession2 then table.insert(noteParts, string.sub(profession2, 1, 2)) end
+            end
+            if mainAltDisplay then table.insert(noteParts, string.sub(mainAltDisplay, 1, 1)) end
         end
-        if mainOrAlt then table.insert(noteParts, string.sub(mainOrAlt, 1, 1)) end
         newNote = safeTrim(table.concat(noteParts, " ")) or ""
 
         while #newNote > MAX_NOTE_LENGTH and #noteParts > 1 do
@@ -466,7 +497,7 @@ end
 -- Creates the settings UI frame with all controls and dropdowns
 function GuildNoteUpdater:CreateUI()
     local frame = CreateFrame("Frame", "GuildNoteUpdaterUI", UIParent, "BasicFrameTemplateWithInset")
-    frame:SetSize(500, 450)
+    frame:SetSize(500, 490)
     frame:SetPoint("CENTER")
     frame:Hide()
     self.settingsFrame = frame
@@ -794,21 +825,48 @@ function GuildNoteUpdater:CreateUI()
     UIDropDownMenu_SetWidth(updateTriggerDropdown, 120)
     UIDropDownMenu_SetText(updateTriggerDropdown, self.updateTrigger or "On Events")
 
+    local noteFormatLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    noteFormatLabel:SetPoint("TOPLEFT", 27, -381)
+    noteFormatLabel:SetText("Note format")
+
+    local noteFormatDropdown = CreateFrame("Frame", "GuildNoteUpdaterNoteFormatDropdown", frame, "UIDropDownMenuTemplate")
+    noteFormatDropdown:SetPoint("LEFT", noteFormatLabel, "RIGHT", 30, 0)
+
+    local function OnNoteFormatSelect(btn)
+        GuildNoteUpdater.noteFormat = btn.value
+        UIDropDownMenu_SetText(noteFormatDropdown, btn.value)
+        GuildNoteUpdaterSettings.noteFormat = btn.value
+        GuildNoteUpdater:UpdateGuildNote()
+    end
+
+    local function InitializeNoteFormatDropdown(dropdown, level)
+        local info = UIDropDownMenu_CreateInfo()
+        for _, opt in ipairs({"Standard", "Compact", "Professions First"}) do
+            info.text, info.value, info.func = opt, opt, OnNoteFormatSelect
+            info.checked = (GuildNoteUpdater.noteFormat == opt)
+            UIDropDownMenu_AddButton(info, level)
+        end
+    end
+
+    UIDropDownMenu_Initialize(noteFormatDropdown, InitializeNoteFormatDropdown)
+    UIDropDownMenu_SetWidth(noteFormatDropdown, 140)
+    UIDropDownMenu_SetText(noteFormatDropdown, self.noteFormat or "Standard")
+
     -- === Note Preview (FEAT-001) ===
 
     local divider = frame:CreateTexture(nil, "ARTWORK")
     divider:SetHeight(1)
-    divider:SetPoint("TOPLEFT", 15, -376)
-    divider:SetPoint("TOPRIGHT", -15, -376)
+    divider:SetPoint("TOPLEFT", 15, -414)
+    divider:SetPoint("TOPRIGHT", -15, -414)
     divider:SetColorTexture(0.5, 0.5, 0.5, 0.5)
 
     previewText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    previewText:SetPoint("TOPLEFT", 27, -389)
+    previewText:SetPoint("TOPLEFT", 27, -427)
     previewText:SetPoint("RIGHT", frame, "RIGHT", -70, 0)
     previewText:SetJustifyH("LEFT")
 
     charCountText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    charCountText:SetPoint("TOPRIGHT", -20, -389)
+    charCountText:SetPoint("TOPRIGHT", -20, -427)
     charCountText:SetJustifyH("RIGHT")
 
     self:UpdateNotePreview()
@@ -981,6 +1039,7 @@ function GuildNoteUpdater:InitializeSettings()
             showUpdateNotification = true,
             enableItemLevel = {}, enableMainAlt = {}, noteLocked = {},
             updateTrigger = "On Events",
+            noteFormat = "Standard",
             minimapButton = { enabled = true, angle = 225 }
         }
     end
@@ -1000,6 +1059,7 @@ function GuildNoteUpdater:InitializeSettings()
     self.enableMainAlt = GuildNoteUpdaterSettings.enableMainAlt or {}
     self.noteLocked = GuildNoteUpdaterSettings.noteLocked or {}
     self.updateTrigger = GuildNoteUpdaterSettings.updateTrigger or "On Events"
+    self.noteFormat = GuildNoteUpdaterSettings.noteFormat or "Standard"
     if not GuildNoteUpdaterSettings.minimapButton then
         GuildNoteUpdaterSettings.minimapButton = { enabled = true, angle = 225 }
     end
