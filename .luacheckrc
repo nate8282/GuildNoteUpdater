@@ -47,6 +47,7 @@ read_globals = {
     "GuildRosterSetPublicNote",
     "IsInGuild",
     "C_GuildInfo",
+    "C_AddOns",
 
     -- Character info
     "GetAverageItemLevel",
@@ -60,6 +61,9 @@ read_globals = {
     "GameTooltip",
     "TooltipDataProcessor",
     "Enum",
+
+    -- Combat
+    "InCombatLockdown",
 
     -- Utility
     "C_Timer",
@@ -81,9 +85,10 @@ files["spec/**"] = {
         "GetSpecializationInfo", "GetNumSpecializations",
         "GetProfessions", "GetProfessionInfo",
         "strsplit", "strtrim",
-        "C_Timer", "C_GuildInfo", "SlashCmdList",
+        "C_Timer", "C_GuildInfo", "C_AddOns", "SlashCmdList",
         "GuildNoteUpdater", "GuildNoteUpdaterSettings", "MockData",
         "GameTooltip", "TooltipDataProcessor", "Enum",
+        "InCombatLockdown",
     },
     ignore = {
         "211",  -- Unused local variable (mock data)
@@ -114,9 +119,10 @@ files["tests/**"] = {
         "GetSpecializationInfo", "GetNumSpecializations",
         "GetProfessions", "GetProfessionInfo",
         "strsplit", "strtrim",
-        "C_Timer", "C_GuildInfo", "SlashCmdList",
+        "C_Timer", "C_GuildInfo", "C_AddOns", "SlashCmdList",
         "GuildNoteUpdater", "GuildNoteUpdaterSettings",
         "GameTooltip", "TooltipDataProcessor", "Enum",
+        "InCombatLockdown",
     },
     ignore = { "211", "212", "213", "311" },
     read_globals = { "dofile", "setmetatable", "os" },

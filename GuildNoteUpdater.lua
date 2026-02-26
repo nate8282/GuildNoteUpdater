@@ -270,6 +270,13 @@ end
 
 -- Builds and sets the guild note from current character data
 function GuildNoteUpdater:UpdateGuildNote()
+    if InCombatLockdown() then
+        self:DebugPrint("In combat lockdown, deferring note update")
+        self.pendingCombatUpdate = true
+        self:RegisterEvent("PLAYER_REGEN_ENABLED")
+        return
+    end
+
     local characterKey = self:GetCharacterKey()
     local newNote = self:BuildNoteString(characterKey)
 
@@ -356,6 +363,12 @@ function GuildNoteUpdater:CreateUI()
     frame.title:SetPoint("CENTER", frame.TitleBg, "CENTER", 0, 0)
     frame.title:SetText("Guild Note Updater")
 
+    local version = C_AddOns.GetAddOnMetadata("GuildNoteUpdater", "Version") or ""
+    frame.version = frame:CreateFontString(nil, "OVERLAY")
+    frame.version:SetFontObject("GameFontNormalSmall")
+    frame.version:SetPoint("RIGHT", frame.TitleBg, "RIGHT", -8, 0)
+    frame.version:SetText("|cFFAAAAAA v" .. version .. "|r")
+
     local characterKey = self:GetCharacterKey()
 
     -- === Left column checkboxes ===
@@ -423,7 +436,7 @@ function GuildNoteUpdater:CreateUI()
     local showNotificationButton = CreateFrame("CheckButton", nil, frame, "UICheckButtonTemplate")
     showNotificationButton:SetPoint("TOPRIGHT", -140, -84)
     showNotificationButton.text:SetFontObject("GameFontNormal")
-    showNotificationButton.text:SetText("Show update notification")
+    showNotificationButton.text:SetText("Update notification")
     showNotificationButton:SetChecked(self.showUpdateNotification ~= false)
     showNotificationButton:SetScript("OnClick", function(btn)
         GuildNoteUpdater.showUpdateNotification = btn:GetChecked()
@@ -632,6 +645,14 @@ function GuildNoteUpdater:OnEvent(event, arg1)
                 if IsInGuild() and GetNumGuildMembers() > 0 then
                     GuildNoteUpdater:UpdateGuildNote()
                 end
+            end)
+        end
+    elseif event == "PLAYER_REGEN_ENABLED" then
+        if self.pendingCombatUpdate then
+            self.pendingCombatUpdate = false
+            self:UnregisterEvent("PLAYER_REGEN_ENABLED")
+            C_Timer.After(DEBOUNCE_DELAY, function()
+                if IsInGuild() then GuildNoteUpdater:UpdateGuildNote() end
             end)
         end
     elseif event == "PLAYER_EQUIPMENT_CHANGED" or event == "ACTIVE_TALENT_GROUP_CHANGED" then

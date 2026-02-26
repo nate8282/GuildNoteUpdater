@@ -57,12 +57,15 @@ GuildNoteUpdater/
 - When you discover a newly broken/removed API in-game, add it to `DEPRECATED_APIS.md` immediately (old code, error text, replacement, notes), then update mocks and `.luacheckrc`
 
 ### Versioning & Releasing
-- Follow SemVer: `MAJOR.MINOR.PATCH`
-- Update version in `.toc` file `## Version:` field
-- Tag releases as `vX.Y.Z` and push the tag
-- BigWigsMods/packager auto-publishes to CurseForge + GitHub Releases on tag push
+- `MAJOR.0.0` = huge feature, `X.MINOR.0` = regular feature, `X.Y.PATCH` = bug fix
+- **Version checklist — update ALL of these on every release:**
+  1. `GuildNoteUpdater.toc` → `## Version: X.Y.Z`
+  2. UI version display → reads from `.toc` automatically via `C_AddOns.GetAddOnMetadata`
+  3. PR title → `vX.Y.Z - ...`
+  4. Git tag → `vX.Y.Z` (push to trigger release pipeline)
+  5. GitHub Release + CurseForge → auto-published by BigWigsMods/packager on tag push
 - Requires `CF_API_KEY` secret in GitHub repo settings
-- Current: v1.8.0
+- Current: v1.9.1
 
 ## Coding Standards
 

@@ -181,6 +181,8 @@ describe("GuildNoteUpdater", function()
         before_each(function()
             GuildNoteUpdater.previousNote = ""
             MockData.updatedNotes = {}
+            MockData.inCombat = false
+            GuildNoteUpdater.pendingCombatUpdate = false
             GuildNoteUpdater.enabledCharacters[charKey] = true
             GuildNoteUpdater.enableProfessions[charKey] = true
             GuildNoteUpdater.mainOrAlt[charKey] = "Main"
@@ -265,6 +267,24 @@ describe("GuildNoteUpdater", function()
             GuildNoteUpdater:UpdateGuildNote()
             assert.is_nil(rawget(GuildNoteUpdater, "previousItemLevel"))
         end)
+
+        it("does not write note during combat lockdown", function()
+            MockData.inCombat = true
+            GuildNoteUpdater:UpdateGuildNote()
+            assert.is_nil(MockData.updatedNotes[1])
+        end)
+
+        it("sets pendingCombatUpdate flag when in combat", function()
+            MockData.inCombat = true
+            GuildNoteUpdater:UpdateGuildNote()
+            assert.is_true(GuildNoteUpdater.pendingCombatUpdate)
+        end)
+
+        it("writes note normally when not in combat", function()
+            MockData.inCombat = false
+            GuildNoteUpdater:UpdateGuildNote()
+            assert.is_not_nil(MockData.updatedNotes[1])
+        end)
     end)
 
     -- === Truncation ===
@@ -272,6 +292,7 @@ describe("GuildNoteUpdater", function()
         before_each(function()
             GuildNoteUpdater.previousNote = ""
             MockData.updatedNotes = {}
+            MockData.inCombat = false
             GuildNoteUpdater.enabledCharacters[charKey] = true
             GuildNoteUpdater.enableProfessions[charKey] = true
             GuildNoteUpdater.mainOrAlt[charKey] = "Main"
