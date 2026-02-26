@@ -40,6 +40,7 @@ read_globals = {
     -- Player info
     "UnitName",
     "GetRealmName",
+    "UnitAverageItemLevel",
 
     -- Guild API
     "GetNumGuildMembers",
@@ -83,7 +84,7 @@ files["spec/**"] = {
         "UIDropDownMenu_SetText", "UIDropDownMenu_CreateInfo",
         "UIDropDownMenu_AddButton", "UIDropDownMenu_EnableDropDown",
         "UIDropDownMenu_DisableDropDown",
-        "UnitName", "GetRealmName",
+        "UnitName", "GetRealmName", "UnitAverageItemLevel",
         "GetNumGuildMembers", "GetGuildRosterInfo", "GuildRosterSetPublicNote",
         "IsInGuild", "GetAverageItemLevel", "GetSpecialization",
         "GetSpecializationInfo", "GetNumSpecializations",
@@ -118,7 +119,7 @@ files["tests/**"] = {
         "UIDropDownMenu_SetText", "UIDropDownMenu_CreateInfo",
         "UIDropDownMenu_AddButton", "UIDropDownMenu_EnableDropDown",
         "UIDropDownMenu_DisableDropDown",
-        "UnitName", "GetRealmName",
+        "UnitName", "GetRealmName", "UnitAverageItemLevel",
         "GetNumGuildMembers", "GetGuildRosterInfo", "GuildRosterSetPublicNote",
         "IsInGuild", "GetAverageItemLevel", "GetSpecialization",
         "GetSpecializationInfo", "GetNumSpecializations",

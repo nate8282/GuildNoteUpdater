@@ -349,11 +349,101 @@ function GuildNoteUpdater:SetupTooltipHook()
                         if parsed.mainAlt then
                             tooltip:AddDoubleLine("  Status", parsed.mainAlt, 1, 0.82, 0, 1, 1, 1)
                         end
+                        -- Stale note warning: compare note ilvl to live ilvl for group members
+                        local threshold = GuildNoteUpdaterSettings and GuildNoteUpdaterSettings.staleThreshold
+                        if threshold == nil then threshold = 15 end
+                        if threshold > 0 then
+                            local noteIlvl = tonumber(parsed.ilvl)
+                            if noteIlvl then
+                                local unitToken = nil
+                                for i = 1, 4 do
+                                    local token = "party" .. i
+                                    if UnitName(token) == unitName then unitToken = token ; break end
+                                end
+                                if not unitToken then
+                                    for i = 1, 40 do
+                                        local token = "raid" .. i
+                                        if UnitName(token) == unitName then unitToken = token ; break end
+                                    end
+                                end
+                                if unitToken then
+                                    local liveIlvl = tonumber(UnitAverageItemLevel(unitToken))
+                                    if liveIlvl and (liveIlvl - noteIlvl) >= threshold then
+                                        tooltip:AddLine(string.format(
+                                            "|cFFFFFF00Note may be outdated (note: %d, live: %d)|r",
+                                            noteIlvl, math.floor(liveIlvl)))
+                                    end
+                                end
+                            end
+                        end
                         tooltip:Show()
                     end
                     break
                 end
             end
+        end
+    end)
+end
+
+-- Prints a guild roster summary to chat (/gnu roster)
+local function PrintRosterSummary(mainsOnly)
+    if not IsInGuild() then
+        print("|cFFFF0000GuildNoteUpdater:|r You are not in a guild.")
+        return
+    end
+    C_GuildInfo.GuildRoster()
+    C_Timer.After(0.5, function()
+        local totalMembers, totalParsed = 0, 0
+        local ilvlSum, ilvlCount = 0, 0
+        local mainCount, altCount = 0, 0
+        local profSet = {}
+
+        for i = 1, GetNumGuildMembers() do
+            local fullName, _, _, _, _, _, note = GetGuildRosterInfo(i)
+            if fullName then
+                totalMembers = totalMembers + 1
+                local parsed = GuildNoteUpdater:ParseGuildNote(note)
+                if parsed then
+                    totalParsed = totalParsed + 1
+                    local isMain = parsed.mainAlt == "Main"
+                    if isMain then mainCount = mainCount + 1 end
+                    if parsed.mainAlt == "Alt" then altCount = altCount + 1 end
+                    if not mainsOnly or isMain then
+                        local ilvl = tonumber(parsed.ilvl)
+                        if ilvl then
+                            ilvlSum = ilvlSum + ilvl
+                            ilvlCount = ilvlCount + 1
+                        end
+                    end
+                    if parsed.professions then
+                        for _, prof in ipairs(parsed.professions) do
+                            profSet[prof] = true
+                        end
+                    end
+                end
+            end
+        end
+
+        local header = mainsOnly and "Mains Only" or "All Members"
+        print(string.format("|cFF00FF00[GNU] Roster Summary (%s)|r", header))
+        if totalParsed == 0 then
+            print("  No recognized GNU notes found.")
+            return
+        end
+        print(string.format("  GNU notes: %d / %d members", totalParsed, totalMembers))
+        if ilvlCount > 0 then
+            print(string.format("  Avg ilvl: %d", math.floor(ilvlSum / ilvlCount)))
+        else
+            print("  Avg ilvl: N/A")
+        end
+        print(string.format("  Mains: %d | Alts: %d", mainCount, altCount))
+        local profList = {}
+        for prof in pairs(profSet) do table.insert(profList, prof) end
+        table.sort(profList)
+        if #profList > 0 then
+            print("  Professions: " .. table.concat(profList, ", "))
+        else
+            print("  Professions: None")
         end
     end)
 end
@@ -493,6 +583,30 @@ function GuildNoteUpdater:CreateUI()
         GuildNoteUpdater.noteLocked[key] = btn:GetChecked()
         GuildNoteUpdaterSettings.noteLocked = GuildNoteUpdater.noteLocked
     end)
+
+    -- Stale ilvl warning threshold (right side, below Show minimap button)
+    local staleInput = CreateFrame("EditBox", nil, frame, "InputBoxTemplate")
+    staleInput:SetSize(30, 20)
+    staleInput:SetPoint("TOPRIGHT", -20, -162)
+    staleInput:SetAutoFocus(false)
+    staleInput:SetMaxLetters(2)
+    local initThreshold = GuildNoteUpdaterSettings.staleThreshold
+    if initThreshold == nil then initThreshold = 15 end
+    staleInput:SetText(tostring(initThreshold))
+    local staleLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    staleLabel:SetPoint("RIGHT", staleInput, "LEFT", -5, 0)
+    staleLabel:SetText("Stale ilvl warning (0=off):")
+    local function SaveStaleThreshold(editBox)
+        local val = tonumber(editBox:GetText())
+        if not val then val = 15 end
+        val = math.max(0, math.min(99, math.floor(val)))
+        GuildNoteUpdaterSettings.staleThreshold = val
+        editBox:SetText(tostring(val))
+        editBox:ClearFocus()
+    end
+    staleInput:SetScript("OnEnterPressed", SaveStaleThreshold)
+    staleInput:SetScript("OnEditFocusLost", SaveStaleThreshold)
+    staleInput:SetScript("OnEscapePressed", function(editBox) editBox:ClearFocus() end)
 
     local showMinimapButton = CreateFrame("CheckButton", nil, frame, "UICheckButtonTemplate")
     showMinimapButton:SetPoint("TOPRIGHT", -140, -136)
@@ -718,6 +832,10 @@ function GuildNoteUpdater:CreateUI()
     SlashCmdList["GUILDNOTEUPDATER"] = function(msg)
         if msg == "update" then
             GuildNoteUpdater:UpdateGuildNote()
+        elseif msg == "roster mains" then
+            PrintRosterSummary(true)
+        elseif msg == "roster" then
+            PrintRosterSummary(false)
         else
             ToggleUI()
         end
@@ -872,7 +990,8 @@ function GuildNoteUpdater:InitializeSettings()
             showUpdateNotification = true,
             enableItemLevel = {}, enableMainAlt = {}, noteLocked = {},
             updateTrigger = "On Events",
-            minimapButton = { enabled = true, angle = 225 }
+            minimapButton = { enabled = true, angle = 225 },
+            staleThreshold = 15
         }
     end
 

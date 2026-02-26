@@ -91,6 +91,9 @@ function UnitName(unit)
     return MockData.player.name
 end
 function GetRealmName() return MockData.player.realm end
+function UnitAverageItemLevel(unit)
+    return MockData.groupMemberIlvl and MockData.groupMemberIlvl[unit]
+end
 
 -- Guild API
 function GetNumGuildMembers() return #MockData.guildMembers, #MockData.guildMembers end

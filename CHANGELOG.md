@@ -2,6 +2,16 @@
 
 All notable changes to GuildNoteUpdater are documented here.
 
+## [1.12.0] - 2026-02-25
+
+### Added
+- **`/gnu roster`** — prints a guild summary to chat: member count with GNU notes, average item level, Main/Alt counts, and profession coverage
+- **`/gnu roster mains`** — same summary but item level average filtered to Mains only
+- **Stale note warning in tooltips** — when hovering a guild member who is in your party/raid, a yellow warning appears if their note item level is significantly below their live item level (configurable threshold, default 15; set to 0 to disable)
+- Stale ilvl threshold setting added to the settings panel ("Stale ilvl warning (0=off):")
+
+---
+
 ## [1.11.0] - 2026-02-25
 
 ### Added
