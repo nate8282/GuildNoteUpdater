@@ -601,23 +601,19 @@ describe("GuildNoteUpdater", function()
 
         it("prints when showUpdateNotification is true", function()
             GuildNoteUpdater.showUpdateNotification = true
-            local printed = false
-            local orig = print
-            print = function() printed = true end
+            local s = spy.on(_G, "print")
             GuildNoteUpdater:ShowUpdateConfirmation("489 Feral Main")
-            print = orig
-            assert.is_true(printed)
+            assert.spy(s).was_called()
+            s:revert()
         end)
 
         it("suppresses print when showUpdateNotification is false", function()
             GuildNoteUpdater.showUpdateNotification = false
-            local printed = false
-            local orig = print
-            print = function() printed = true end
+            local s = spy.on(_G, "print")
             GuildNoteUpdater:ShowUpdateConfirmation("489 Feral Main")
-            print = orig
+            assert.spy(s).was_not_called()
+            s:revert()
             GuildNoteUpdater.showUpdateNotification = true
-            assert.is_false(printed)
         end)
     end)
 
