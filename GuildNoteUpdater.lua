@@ -743,16 +743,16 @@ function GuildNoteUpdater:CreateMinimapButton()
     button:SetFrameLevel(8)
     button:RegisterForDrag("LeftButton")
 
-    -- Icon inset to match standard LibDBIcon minimap button proportions
+    -- Icon sized to fill the inner circle of the border ring
     local icon = button:CreateTexture(nil, "BACKGROUND")
-    icon:SetSize(17, 17)
-    icon:SetPoint("TOPLEFT", button, "TOPLEFT", 7, -7)
+    icon:SetSize(21, 21)
+    icon:SetPoint("TOPLEFT", button, "TOPLEFT", 5, -5)
     icon:SetTexture("Interface\\AddOns\\GuildNoteUpdater\\Icon")
 
     -- Circular mask to clip the icon into a circle
     local mask = button:CreateMaskTexture()
-    mask:SetSize(17, 17)
-    mask:SetPoint("TOPLEFT", button, "TOPLEFT", 7, -7)
+    mask:SetSize(21, 21)
+    mask:SetPoint("TOPLEFT", button, "TOPLEFT", 5, -5)
     mask:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask", "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
     icon:AddMaskTexture(mask)
 
