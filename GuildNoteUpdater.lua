@@ -350,6 +350,16 @@ function GuildNoteUpdater:UpdateGuildNote()
     self:UpdateNotePreview()
 end
 
+-- Builds a "Name-RealmNoSpaces" key from a guild roster full name
+-- Handles same-realm members (no realm suffix) and cross-realm members
+local function buildMemberKey(fullName)
+    local name, realm = strsplit("-", fullName)
+    if realm then
+        return name .. "-" .. realm:gsub("%s+", "")
+    end
+    return fullName .. "-" .. GetRealmName():gsub("%s+", "")
+end
+
 -- Sets up tooltip hook to display parsed guild note data
 -- Uses TooltipDataProcessor API (Retail 9.0+) - OnTooltipSetUnit was removed in modern WoW
 function GuildNoteUpdater:SetupTooltipHook()
@@ -380,6 +390,14 @@ function GuildNoteUpdater:SetupTooltipHook()
                         end
                         if parsed.mainAlt then
                             tooltip:AddDoubleLine("  Status", parsed.mainAlt, 1, 0.82, 0, 1, 1, 1)
+                        end
+                        -- Alt registry: show main character name for alts
+                        if parsed.mainAlt == "Alt" then
+                            local altKey = buildMemberKey(fullName)
+                            local mainName = GuildNoteUpdater.altRegistry and GuildNoteUpdater.altRegistry[altKey]
+                            if mainName then
+                                tooltip:AddDoubleLine("  Main", mainName, 1, 0.82, 0, 1, 1, 1)
+                            end
                         end
                         -- Stale note warning: compare note ilvl to live ilvl for group members
                         if STALE_ILVL_THRESHOLD > 0 then
@@ -879,12 +897,36 @@ function GuildNoteUpdater:CreateUI()
         if frame:IsShown() then frame:Hide() else frame:Show() end
     end
     SlashCmdList["GUILDNOTEUPDATER"] = function(msg)
+        local setmainArg = msg:match("^setmain%s+(.+)$")
         if msg == "update" then
             GuildNoteUpdater:UpdateGuildNote()
         elseif msg == "roster mains" then
             PrintRosterSummary(true)
         elseif msg == "roster" then
             PrintRosterSummary(false)
+        elseif setmainArg then
+            local mainName = strtrim(setmainArg)
+            local key = GuildNoteUpdater:GetCharacterKey()
+            if not GuildNoteUpdaterSettings.altRegistry then GuildNoteUpdaterSettings.altRegistry = {} end
+            GuildNoteUpdaterSettings.altRegistry[key] = mainName
+            GuildNoteUpdater.altRegistry = GuildNoteUpdaterSettings.altRegistry
+            print(string.format("|cFF00FF00GuildNoteUpdater:|r %s linked to main: %s", key, mainName))
+        elseif msg == "setmain" then
+            print("|cFF00FF00GuildNoteUpdater:|r Usage: /gnu setmain <MainName>")
+        elseif msg == "alts clear" then
+            GuildNoteUpdaterSettings.altRegistry = {}
+            GuildNoteUpdater.altRegistry = {}
+            print("|cFF00FF00GuildNoteUpdater:|r Alt registry cleared.")
+        elseif msg == "alts" then
+            local registry = GuildNoteUpdater.altRegistry
+            if not registry or not next(registry) then
+                print("|cFF00FF00GuildNoteUpdater:|r Alt registry is empty.")
+            else
+                print("|cFF00FF00GuildNoteUpdater:|r Alt registry:")
+                for alt, main in pairs(registry) do
+                    print(string.format("  %s -> %s", alt, main))
+                end
+            end
         else
             ToggleUI()
         end
@@ -1040,6 +1082,7 @@ function GuildNoteUpdater:InitializeSettings()
             enableItemLevel = {}, enableMainAlt = {}, noteLocked = {},
             updateTrigger = "On Events",
             noteFormat = "Standard",
+            altRegistry = {},
             minimapButton = { enabled = true, angle = 225 }
         }
     end
@@ -1060,6 +1103,10 @@ function GuildNoteUpdater:InitializeSettings()
     self.noteLocked = GuildNoteUpdaterSettings.noteLocked or {}
     self.updateTrigger = GuildNoteUpdaterSettings.updateTrigger or "On Events"
     self.noteFormat = GuildNoteUpdaterSettings.noteFormat or "Standard"
+    if not GuildNoteUpdaterSettings.altRegistry then
+        GuildNoteUpdaterSettings.altRegistry = {}
+    end
+    self.altRegistry = GuildNoteUpdaterSettings.altRegistry
     if not GuildNoteUpdaterSettings.minimapButton then
         GuildNoteUpdaterSettings.minimapButton = { enabled = true, angle = 225 }
     end
