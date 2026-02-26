@@ -418,13 +418,13 @@ function GuildNoteUpdater:SetupTooltipHook()
                             local noteIlvl = tonumber(parsed.ilvl)
                             if noteIlvl then
                                 local unitToken = nil
-                                for i = 1, 4 do
-                                    local token = "party" .. i
+                                for pi = 1, 4 do
+                                    local token = "party" .. pi
                                     if UnitName(token) == unitName then unitToken = token ; break end
                                 end
                                 if not unitToken then
-                                    for i = 1, 40 do
-                                        local token = "raid" .. i
+                                    for ri = 1, 40 do
+                                        local token = "raid" .. ri
                                         if UnitName(token) == unitName then unitToken = token ; break end
                                     end
                                 end
@@ -1648,7 +1648,7 @@ function GuildNoteUpdater:OnEvent(event, arg1)
             self.pendingUpdateTimer:Cancel()
         end
         self.pendingUpdateTimer = C_Timer.NewTimer(DEBOUNCE_DELAY, function()
-            self.pendingUpdateTimer = nil
+            self.pendingUpdateTimer = false
             if IsInGuild() then GuildNoteUpdater:UpdateGuildNote() end
         end)
     end
@@ -1698,6 +1698,9 @@ function GuildNoteUpdater:InitializeSettings()
     local characterKey = self:GetCharacterKey()
     if self.enableProfessions[characterKey] == nil then self.enableProfessions[characterKey] = true end
     if self.specUpdateMode[characterKey] == nil then self.specUpdateMode[characterKey] = "Automatically" end
+
+    self.pendingUpdateTimer = false
+    self.hasUpdated = false
 
     self:CreateUI()
     self:CreateMinimapButton()

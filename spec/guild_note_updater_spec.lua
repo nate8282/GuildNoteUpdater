@@ -896,6 +896,8 @@ describe("GuildNoteUpdater", function()
             GuildNoteUpdater.specUpdateMode[charKey] = "Automatically"
             GuildNoteUpdater.notePrefix[charKey] = nil
             GuildNoteUpdater.hasUpdated = false
+            GuildNoteUpdater.previousNote = nil
+            GuildNoteUpdater.pendingUpdateTimer = false
             MockData.itemLevel = { overall = 489.5, equipped = 485.2 }
             MockData.spec.index = 2
             MockData.updatedNotes = {}

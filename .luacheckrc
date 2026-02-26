@@ -12,6 +12,7 @@ ignore = {
     "11./SLASH_.*",     -- Slash command globals (SLASH_GUILDNOTEUPDATER1, etc.)
     "11./BINDING_.*",   -- Keybinding globals
     "212",              -- Unused arguments (WoW callbacks have fixed signatures)
+    "432",              -- Shadowing upvalue 'self' (intentional in WoW SetScript callbacks and method defs)
 }
 
 -- Globals the addon WRITES to
@@ -60,6 +61,9 @@ read_globals = {
     -- Minimap
     "Minimap",
     "GetCursorPosition",
+
+    -- Font objects
+    "GameFontNormalSmall",
 
     -- Utility
     "C_Timer",

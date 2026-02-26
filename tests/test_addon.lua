@@ -32,6 +32,9 @@ end
 -- Global WoW API mocks
 function CreateFrame() return mockFrame() end
 UIParent = mockFrame()
+Minimap = mockFrame()
+Minimap.GetWidth = function() return 140 end
+Minimap.GetCenter = function() return 400, 300 end
 function UIDropDownMenu_Initialize() end
 function UIDropDownMenu_SetWidth() end
 function UIDropDownMenu_SetText() end
@@ -88,6 +91,11 @@ TooltipDataProcessor = {
 Enum = {
     TooltipDataType = { Unit = 0 },
 }
+GameFontNormalSmall = mockFrame()
+RAID_CLASS_COLORS = {
+    DRUID = { r = 1.00, g = 0.49, b = 0.04 },
+}
+GetCursorPosition = function() return 400, 300 end
 
 -- Load addon
 dofile("GuildNoteUpdater.lua")
