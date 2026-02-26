@@ -19,13 +19,6 @@ for full, abbrev in pairs(professionAbbreviations) do
     abbreviationToFull[abbrev] = full
 end
 
--- Role mappings for abbreviation mode
-local roleAbbreviations = {
-    TANK = "T",
-    HEALER = "H",
-    DAMAGER = "D",
-}
-
 -- Returns "Name-Realm" to uniquely identify characters across connected realms
 function GuildNoteUpdater:GetCharacterKey()
     local name = UnitName("player")
@@ -61,23 +54,6 @@ function GuildNoteUpdater:GetSpec(characterKey)
         return self.selectedSpec[characterKey]
     end
     return select(2, GetSpecializationInfo(specIndex))
-end
-
--- Gets spec display string for note (full name or T/H/D role abbreviation)
-function GuildNoteUpdater:GetSpecForNote(characterKey)
-    local spec = self:GetSpec(characterKey)
-    if not spec then return nil end
-
-    if self.useRoleAbbreviation[characterKey] then
-        local specIndex = GetSpecialization()
-        if specIndex then
-            local role = select(5, GetSpecializationInfo(specIndex))
-            if role and roleAbbreviations[role] then
-                return roleAbbreviations[role]
-            end
-        end
-    end
-    return spec
 end
 
 -- Finds player's index in guild roster using exact Name-Realm match
@@ -150,11 +126,7 @@ function GuildNoteUpdater:ParseGuildNote(note)
     local profs = {}
     for i, token in ipairs(tokens) do
         if i == 1 then
-            if token == "T" or token == "H" or token == "D" then
-                result.role = ({T = "Tank", H = "Healer", D = "DPS"})[token]
-            else
-                result.spec = token
-            end
+            result.spec = token
         else
             if abbreviationToFull[token] then
                 table.insert(profs, abbreviationToFull[token])
@@ -186,7 +158,7 @@ function GuildNoteUpdater:BuildNoteString(characterKey)
 
     local spec = nil
     if self.enableSpec[characterKey] ~= false then
-        spec = self:GetSpecForNote(characterKey)
+        spec = self:GetSpec(characterKey)
     end
 
     local mainOrAlt = self.mainOrAlt[characterKey]
@@ -347,8 +319,6 @@ function GuildNoteUpdater:SetupTooltipHook()
                         tooltip:AddDoubleLine("  Item Level", parsed.ilvl, 1, 0.82, 0, 1, 1, 1)
                         if parsed.spec then
                             tooltip:AddDoubleLine("  Spec", parsed.spec, 1, 0.82, 0, 1, 1, 1)
-                        elseif parsed.role then
-                            tooltip:AddDoubleLine("  Role", parsed.role, 1, 0.82, 0, 1, 1, 1)
                         end
                         if parsed.professions then
                             tooltip:AddDoubleLine("  Professions", table.concat(parsed.professions, ", "), 1, 0.82, 0, 1, 1, 1)
@@ -426,18 +396,6 @@ function GuildNoteUpdater:CreateUI()
         GuildNoteUpdater:UpdateGuildNote()
     end)
 
-    local useRoleButton = CreateFrame("CheckButton", nil, frame, "UICheckButtonTemplate")
-    useRoleButton:SetPoint("TOPLEFT", 20, -110)
-    useRoleButton.text:SetFontObject("GameFontNormal")
-    useRoleButton.text:SetText("Use Role (T/H/D)")
-    useRoleButton:SetChecked(self.useRoleAbbreviation[characterKey] or false)
-    useRoleButton:SetScript("OnClick", function(btn)
-        local key = GuildNoteUpdater:GetCharacterKey()
-        GuildNoteUpdater.useRoleAbbreviation[key] = btn:GetChecked()
-        GuildNoteUpdaterSettings.useRoleAbbreviation = GuildNoteUpdater.useRoleAbbreviation
-        GuildNoteUpdater:UpdateGuildNote()
-    end)
-
     -- === Right column checkboxes ===
 
     local enableDebugButton = CreateFrame("CheckButton", nil, frame, "UICheckButtonTemplate")
@@ -464,7 +422,7 @@ function GuildNoteUpdater:CreateUI()
     -- === Dropdowns section ===
 
     local specUpdateLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    specUpdateLabel:SetPoint("TOPLEFT", 27, -140)
+    specUpdateLabel:SetPoint("TOPLEFT", 27, -114)
     specUpdateLabel:SetText("Update spec")
 
     local specUpdateDropdown = CreateFrame("Frame", "GuildNoteUpdaterSpecUpdateDropdown", frame, "UIDropDownMenuTemplate")
@@ -531,7 +489,7 @@ function GuildNoteUpdater:CreateUI()
     end
 
     local itemLevelTypeLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    itemLevelTypeLabel:SetPoint("TOPLEFT", 27, -210)
+    itemLevelTypeLabel:SetPoint("TOPLEFT", 27, -184)
     itemLevelTypeLabel:SetText("Item Level Type")
 
     local itemLevelDropdown = CreateFrame("Frame", "GuildNoteUpdaterItemLevelDropdown", frame, "UIDropDownMenuTemplate")
@@ -561,7 +519,7 @@ function GuildNoteUpdater:CreateUI()
     UIDropDownMenu_SetText(itemLevelDropdown, self.itemLevelType[characterKey] or "Overall")
 
     local mainAltLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    mainAltLabel:SetPoint("TOPLEFT", 27, -247)
+    mainAltLabel:SetPoint("TOPLEFT", 27, -221)
     mainAltLabel:SetText("Main or Alt")
 
     local mainAltDropdown = CreateFrame("Frame", "GuildNoteUpdaterMainAltDropdown", frame, "UIDropDownMenuTemplate")
@@ -590,7 +548,7 @@ function GuildNoteUpdater:CreateUI()
     UIDropDownMenu_SetText(mainAltDropdown, self.mainOrAlt[characterKey] or "<None>")
 
     local notePrefixLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    notePrefixLabel:SetPoint("TOPLEFT", 27, -284)
+    notePrefixLabel:SetPoint("TOPLEFT", 27, -258)
     notePrefixLabel:SetText("Note Prefix")
 
     local notePrefixText = CreateFrame("EditBox", nil, frame, "InputBoxTemplate")
@@ -617,17 +575,17 @@ function GuildNoteUpdater:CreateUI()
 
     local divider = frame:CreateTexture(nil, "ARTWORK")
     divider:SetHeight(1)
-    divider:SetPoint("TOPLEFT", 15, -315)
-    divider:SetPoint("TOPRIGHT", -15, -315)
+    divider:SetPoint("TOPLEFT", 15, -289)
+    divider:SetPoint("TOPRIGHT", -15, -289)
     divider:SetColorTexture(0.5, 0.5, 0.5, 0.5)
 
     previewText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    previewText:SetPoint("TOPLEFT", 27, -328)
+    previewText:SetPoint("TOPLEFT", 27, -302)
     previewText:SetPoint("RIGHT", frame, "RIGHT", -70, 0)
     previewText:SetJustifyH("LEFT")
 
     charCountText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    charCountText:SetPoint("TOPRIGHT", -20, -328)
+    charCountText:SetPoint("TOPRIGHT", -20, -302)
     charCountText:SetJustifyH("RIGHT")
 
     self:UpdateNotePreview()
@@ -684,7 +642,7 @@ function GuildNoteUpdater:InitializeSettings()
         GuildNoteUpdaterSettings = {
             enabledCharacters = {}, specUpdateMode = {}, selectedSpec = {},
             itemLevelType = {}, mainOrAlt = {}, enableProfessions = {},
-            debugEnabled = false, notePrefix = {}, useRoleAbbreviation = {},
+            debugEnabled = false, notePrefix = {},
             enableSpec = {}, enableTooltipParsing = true
         }
     end
@@ -697,7 +655,6 @@ function GuildNoteUpdater:InitializeSettings()
     self.enableProfessions = GuildNoteUpdaterSettings.enableProfessions or {}
     self.debugEnabled = GuildNoteUpdaterSettings.debugEnabled or false
     self.notePrefix = GuildNoteUpdaterSettings.notePrefix or {}
-    self.useRoleAbbreviation = GuildNoteUpdaterSettings.useRoleAbbreviation or {}
     self.enableSpec = GuildNoteUpdaterSettings.enableSpec or {}
     self.enableTooltipParsing = GuildNoteUpdaterSettings.enableTooltipParsing ~= false
 

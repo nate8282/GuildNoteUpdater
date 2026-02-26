@@ -83,42 +83,6 @@ describe("GuildNoteUpdater", function()
         end)
     end)
 
-    -- === GetSpecForNote ===
-    describe("GetSpecForNote", function()
-        after_each(function()
-            GuildNoteUpdater.useRoleAbbreviation[charKey] = false
-            MockData.spec.index = 2
-        end)
-
-        it("returns spec name when useRoleAbbreviation is false", function()
-            GuildNoteUpdater.useRoleAbbreviation[charKey] = false
-            assert.are.equal("Feral", GuildNoteUpdater:GetSpecForNote(charKey))
-        end)
-
-        it("returns D for DPS spec when useRoleAbbreviation is true", function()
-            GuildNoteUpdater.useRoleAbbreviation[charKey] = true
-            MockData.spec.index = 2  -- Feral = DAMAGER
-            assert.are.equal("D", GuildNoteUpdater:GetSpecForNote(charKey))
-        end)
-
-        it("returns T for tank spec when useRoleAbbreviation is true", function()
-            GuildNoteUpdater.useRoleAbbreviation[charKey] = true
-            MockData.spec.index = 3  -- Guardian = TANK
-            assert.are.equal("T", GuildNoteUpdater:GetSpecForNote(charKey))
-        end)
-
-        it("returns H for healer spec when useRoleAbbreviation is true", function()
-            GuildNoteUpdater.useRoleAbbreviation[charKey] = true
-            MockData.spec.index = 4  -- Restoration = HEALER
-            assert.are.equal("H", GuildNoteUpdater:GetSpecForNote(charKey))
-        end)
-
-        it("returns nil when GetSpecialization returns nil", function()
-            MockData.spec.index = nil
-            assert.is_nil(GuildNoteUpdater:GetSpecForNote(charKey))
-        end)
-    end)
-
     -- === BuildNoteString ===
     describe("BuildNoteString", function()
         before_each(function()
@@ -129,7 +93,6 @@ describe("GuildNoteUpdater", function()
             GuildNoteUpdater.itemLevelType[charKey] = "Overall"
             GuildNoteUpdater.specUpdateMode[charKey] = "Automatically"
             GuildNoteUpdater.enableSpec[charKey] = true
-            GuildNoteUpdater.useRoleAbbreviation[charKey] = false
             MockData.itemLevel = { overall = 489.5, equipped = 485.2 }
             MockData.spec.index = 2
         end)
@@ -193,14 +156,6 @@ describe("GuildNoteUpdater", function()
             assert.is_truthy(note:find("Feral"))
         end)
 
-        it("uses role abbreviation when enabled", function()
-            GuildNoteUpdater.useRoleAbbreviation[charKey] = true
-            MockData.spec.index = 2  -- DAMAGER
-            local note = GuildNoteUpdater:BuildNoteString(charKey)
-            assert.is_truthy(note:find(" D ") or note:find(" D$"))
-            assert.is_falsy(note:find("Feral"))
-        end)
-
         it("truncates to 31 characters or fewer", function()
             GuildNoteUpdater.notePrefix[charKey] = "RaidLeaderLongName"
             local note = GuildNoteUpdater:BuildNoteString(charKey)
@@ -233,7 +188,6 @@ describe("GuildNoteUpdater", function()
             GuildNoteUpdater.itemLevelType[charKey] = "Overall"
             GuildNoteUpdater.specUpdateMode[charKey] = "Automatically"
             GuildNoteUpdater.enableSpec[charKey] = true
-            GuildNoteUpdater.useRoleAbbreviation[charKey] = false
             MockData.itemLevel = { overall = 489.5, equipped = 485.2 }
             MockData.spec.index = 2
         end)
@@ -324,7 +278,6 @@ describe("GuildNoteUpdater", function()
             GuildNoteUpdater.itemLevelType[charKey] = "Overall"
             GuildNoteUpdater.specUpdateMode[charKey] = "Automatically"
             GuildNoteUpdater.enableSpec[charKey] = true
-            GuildNoteUpdater.useRoleAbbreviation[charKey] = false
             MockData.itemLevel = { overall = 489.5, equipped = 485.2 }
             MockData.spec.index = 2
         end)
@@ -346,7 +299,6 @@ describe("GuildNoteUpdater", function()
             GuildNoteUpdater.mainOrAlt[charKey] = "Main"
             GuildNoteUpdater.itemLevelType[charKey] = "Overall"
             GuildNoteUpdater.enableSpec[charKey] = true
-            GuildNoteUpdater.useRoleAbbreviation[charKey] = false
             MockData.itemLevel = { overall = 489.5, equipped = 485.2 }
             MockData.spec.index = 2
         end)
@@ -402,26 +354,6 @@ describe("GuildNoteUpdater", function()
             assert.are.equal("489", result.ilvl)
             assert.is_nil(result.spec)
             assert.is_nil(result.mainAlt)
-        end)
-
-        it("parses a note with role abbreviation T", function()
-            local result = GuildNoteUpdater:ParseGuildNote("489 T LW Main")
-            assert.are.equal("489", result.ilvl)
-            assert.are.equal("Tank", result.role)
-            assert.are.equal("Main", result.mainAlt)
-        end)
-
-        it("parses a note with role abbreviation H", function()
-            local result = GuildNoteUpdater:ParseGuildNote("512 H Alch Herb Alt")
-            assert.are.equal("512", result.ilvl)
-            assert.are.equal("Healer", result.role)
-            assert.are.equal("Alt", result.mainAlt)
-        end)
-
-        it("parses a note with role abbreviation D", function()
-            local result = GuildNoteUpdater:ParseGuildNote("500 D JC Min Main")
-            assert.are.equal("500", result.ilvl)
-            assert.are.equal("DPS", result.role)
         end)
 
         it("returns nil for empty string", function()
@@ -502,62 +434,6 @@ describe("GuildNoteUpdater", function()
         end)
     end)
 
-    -- === Role abbreviation in BuildNoteString (FEAT-004) ===
-    describe("role abbreviation in notes", function()
-        before_each(function()
-            GuildNoteUpdater.previousNote = ""
-            MockData.updatedNotes = {}
-            GuildNoteUpdater.enabledCharacters[charKey] = true
-            GuildNoteUpdater.enableProfessions[charKey] = false
-            GuildNoteUpdater.mainOrAlt[charKey] = "<None>"
-            GuildNoteUpdater.notePrefix[charKey] = nil
-            GuildNoteUpdater.itemLevelType[charKey] = "Overall"
-            GuildNoteUpdater.specUpdateMode[charKey] = "Automatically"
-            GuildNoteUpdater.enableSpec[charKey] = true
-            MockData.itemLevel = { overall = 489.5, equipped = 485.2 }
-        end)
-
-        it("uses full spec name when role abbreviation is off", function()
-            GuildNoteUpdater.useRoleAbbreviation[charKey] = false
-            MockData.spec.index = 2
-            GuildNoteUpdater:UpdateGuildNote()
-            assert.is_truthy(MockData.updatedNotes[1]:find("Feral"))
-        end)
-
-        it("uses D when role abbreviation is on for DPS spec", function()
-            GuildNoteUpdater.useRoleAbbreviation[charKey] = true
-            MockData.spec.index = 2  -- Feral = DAMAGER
-            GuildNoteUpdater:UpdateGuildNote()
-            assert.is_truthy(MockData.updatedNotes[1]:find("D"))
-            assert.is_falsy(MockData.updatedNotes[1]:find("Feral"))
-        end)
-
-        it("uses T when role abbreviation is on for tank spec", function()
-            GuildNoteUpdater.useRoleAbbreviation[charKey] = true
-            MockData.spec.index = 3  -- Guardian = TANK
-            GuildNoteUpdater:UpdateGuildNote()
-            assert.is_truthy(MockData.updatedNotes[1]:find("T"))
-        end)
-
-        it("uses H when role abbreviation is on for healer spec", function()
-            GuildNoteUpdater.useRoleAbbreviation[charKey] = true
-            MockData.spec.index = 4  -- Restoration = HEALER
-            GuildNoteUpdater:UpdateGuildNote()
-            assert.is_truthy(MockData.updatedNotes[1]:find("H"))
-        end)
-
-        it("saves characters compared to full spec name", function()
-            GuildNoteUpdater.useRoleAbbreviation[charKey] = false
-            MockData.spec.index = 4  -- Restoration
-            local fullNote = GuildNoteUpdater:BuildNoteString(charKey)
-
-            GuildNoteUpdater.useRoleAbbreviation[charKey] = true
-            local shortNote = GuildNoteUpdater:BuildNoteString(charKey)
-
-            assert.is_truthy(#shortNote < #fullNote)
-        end)
-    end)
-
     -- === Spec toggle (FEAT-005) ===
     describe("spec toggle", function()
         before_each(function()
@@ -568,7 +444,6 @@ describe("GuildNoteUpdater", function()
             GuildNoteUpdater.mainOrAlt[charKey] = "Main"
             GuildNoteUpdater.notePrefix[charKey] = nil
             GuildNoteUpdater.itemLevelType[charKey] = "Overall"
-            GuildNoteUpdater.useRoleAbbreviation[charKey] = false
             MockData.itemLevel = { overall = 489.5, equipped = 485.2 }
             MockData.spec.index = 2
         end)
@@ -607,7 +482,6 @@ describe("GuildNoteUpdater", function()
             GuildNoteUpdater.enableProfessions[charKey] = true
             GuildNoteUpdater.mainOrAlt[charKey] = "Main"
             GuildNoteUpdater.enableSpec[charKey] = true
-            GuildNoteUpdater.useRoleAbbreviation[charKey] = false
         end)
 
         after_each(function()
@@ -645,7 +519,6 @@ describe("GuildNoteUpdater", function()
             MockData.updatedNotes = {}
             GuildNoteUpdater.enabledCharacters[charKey] = true
             GuildNoteUpdater.enableSpec[charKey] = true
-            GuildNoteUpdater.useRoleAbbreviation[charKey] = false
             MockData.itemLevel = { overall = 489.5, equipped = 485.2 }
             MockData.spec.index = 2
             assert.has_no.errors(function()
@@ -663,7 +536,6 @@ describe("GuildNoteUpdater", function()
             GuildNoteUpdater:InitializeSettings()
             assert.is_not_nil(_G.GuildNoteUpdaterSettings)
             assert.is_table(_G.GuildNoteUpdaterSettings.enabledCharacters)
-            assert.is_table(_G.GuildNoteUpdaterSettings.useRoleAbbreviation)
             assert.is_table(_G.GuildNoteUpdaterSettings.enableSpec)
         end)
 
@@ -673,7 +545,7 @@ describe("GuildNoteUpdater", function()
                 specUpdateMode = {}, selectedSpec = {},
                 itemLevelType = {}, mainOrAlt = {},
                 enableProfessions = {}, debugEnabled = false,
-                notePrefix = {}, useRoleAbbreviation = {},
+                notePrefix = {},
                 enableSpec = {}, enableTooltipParsing = true,
             }
             GuildNoteUpdater:InitializeSettings()
@@ -722,7 +594,6 @@ describe("GuildNoteUpdater", function()
             GuildNoteUpdater.enableProfessions[charKey] = true
             GuildNoteUpdater.mainOrAlt[charKey] = "Main"
             GuildNoteUpdater.enableSpec[charKey] = true
-            GuildNoteUpdater.useRoleAbbreviation[charKey] = false
             MockData.itemLevel = { overall = 489.5, equipped = 485.2 }
             MockData.spec.index = 2
         end)
