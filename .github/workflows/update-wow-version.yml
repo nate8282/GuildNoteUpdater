@@ -27,7 +27,7 @@ jobs:
         run: |
           set -e
           # Blizzard's public NGDP patch manifest — no auth required
-          RAW=$(curl -sf --max-time 15 "https://us.patch.battle.net:1119/wow/versions")
+          RAW=$(curl -sf --max-time 15 "http://us.patch.battle.net:1119/wow/versions")
 
           # Extract US region VersionsName field (e.g. "12.0.1.66102")
           VERSION_STRING=$(echo "$RAW" | grep '^us|' | cut -d'|' -f6)
