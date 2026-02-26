@@ -176,6 +176,92 @@ describe("GuildNoteUpdater", function()
         end)
     end)
 
+    -- === Note format templates ===
+    describe("note format templates", function()
+        before_each(function()
+            GuildNoteUpdater.enabledCharacters[charKey] = true
+            GuildNoteUpdater.enableProfessions[charKey] = true
+            GuildNoteUpdater.mainOrAlt[charKey] = "Main"
+            GuildNoteUpdater.notePrefix[charKey] = nil
+            GuildNoteUpdater.itemLevelType[charKey] = "Overall"
+            GuildNoteUpdater.specUpdateMode[charKey] = "Automatically"
+            GuildNoteUpdater.enableSpec[charKey] = true
+            GuildNoteUpdater.enableItemLevel[charKey] = true
+            GuildNoteUpdater.enableMainAlt[charKey] = true
+            MockData.itemLevel = { overall = 489.5, equipped = 485.2 }
+            MockData.spec.index = 2
+        end)
+
+        it("Standard produces ilvl Spec Prof1 Prof2 Main/Alt order", function()
+            GuildNoteUpdater.noteFormat = "Standard"
+            local note = GuildNoteUpdater:BuildNoteString(charKey)
+            assert.are.equal("489 Feral LW Skn Main", note)
+        end)
+
+        it("Compact uses M/A instead of Main/Alt", function()
+            GuildNoteUpdater.noteFormat = "Compact"
+            local note = GuildNoteUpdater:BuildNoteString(charKey)
+            assert.is_truthy(note:find(" M$"))
+            assert.is_falsy(note:find("Main"))
+        end)
+
+        it("Compact truncates spec to 4 chars", function()
+            GuildNoteUpdater.noteFormat = "Compact"
+            local note = GuildNoteUpdater:BuildNoteString(charKey)
+            assert.is_truthy(note:find("Fera"))
+            assert.is_falsy(note:find("Feral "))
+        end)
+
+        it("Compact produces shorter or equal note than Standard", function()
+            GuildNoteUpdater.noteFormat = "Standard"
+            local standard = GuildNoteUpdater:BuildNoteString(charKey)
+            GuildNoteUpdater.noteFormat = "Compact"
+            local compact = GuildNoteUpdater:BuildNoteString(charKey)
+            assert.is_truthy(#compact <= #standard)
+        end)
+
+        it("Compact Alt member uses A", function()
+            GuildNoteUpdater.mainOrAlt[charKey] = "Alt"
+            GuildNoteUpdater.noteFormat = "Compact"
+            local note = GuildNoteUpdater:BuildNoteString(charKey)
+            assert.is_truthy(note:find(" A$"))
+            assert.is_falsy(note:find("Alt"))
+        end)
+
+        it("Professions First places profs before ilvl", function()
+            GuildNoteUpdater.noteFormat = "Professions First"
+            local note = GuildNoteUpdater:BuildNoteString(charKey)
+            local lwPos = note:find("LW")
+            local ilvlPos = note:find("489")
+            assert.is_truthy(lwPos and ilvlPos and lwPos < ilvlPos)
+        end)
+
+        it("Professions First still contains all fields", function()
+            GuildNoteUpdater.noteFormat = "Professions First"
+            local note = GuildNoteUpdater:BuildNoteString(charKey)
+            assert.is_truthy(note:find("LW"))
+            assert.is_truthy(note:find("Skn"))
+            assert.is_truthy(note:find("489"))
+            assert.is_truthy(note:find("Feral"))
+            assert.is_truthy(note:find("Main"))
+        end)
+
+        it("noteFormat defaults to Standard when nil", function()
+            GuildNoteUpdater.noteFormat = nil
+            local note = GuildNoteUpdater:BuildNoteString(charKey)
+            assert.are.equal("489 Feral LW Skn Main", note)
+        end)
+
+        it("truncates to 31 chars regardless of format", function()
+            GuildNoteUpdater.notePrefix[charKey] = "RaidLeaderLong"
+            for _, fmt in ipairs({"Standard", "Compact", "Professions First"}) do
+                GuildNoteUpdater.noteFormat = fmt
+                local note = GuildNoteUpdater:BuildNoteString(charKey)
+                assert.is_truthy(#note <= 31, fmt .. " note too long: " .. #note)
+            end
+        end)
+    end)
+
     -- === UpdateGuildNote ===
     describe("UpdateGuildNote", function()
         before_each(function()
