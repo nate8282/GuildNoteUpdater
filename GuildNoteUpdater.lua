@@ -199,7 +199,7 @@ function GuildNoteUpdater:BuildNoteString(characterKey)
 
     local newNote = safeTrim(table.concat(noteParts, " ")) or ""
 
-    if newNote == "" then return nil end
+    if newNote == "" then return "" end
 
     -- Truncate to fit 31-char guild note limit
     if #newNote > MAX_NOTE_LENGTH then

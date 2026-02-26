@@ -694,13 +694,13 @@ describe("GuildNoteUpdater", function()
             assert.is_falsy(note and note:find("Main"))
         end)
 
-        it("returns nil when all visible fields produce an empty note", function()
+        it("returns empty string when all visible fields are disabled (clears note)", function()
             GuildNoteUpdater.enableItemLevel[charKey] = false
             GuildNoteUpdater.enableSpec[charKey] = false
             GuildNoteUpdater.enableMainAlt[charKey] = false
             -- enableProfessions already false, no prefix
             local note = GuildNoteUpdater:BuildNoteString(charKey)
-            assert.is_nil(note)
+            assert.are.equal("", note)
         end)
 
         it("note without ilvl still includes spec and main/alt", function()
