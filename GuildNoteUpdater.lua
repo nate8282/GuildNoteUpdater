@@ -1,4 +1,4 @@
-GuildNoteUpdater = CreateFrame("Frame")
+﻿GuildNoteUpdater = CreateFrame("Frame")
 GuildNoteUpdater.hasUpdated = false
 GuildNoteUpdater.previousNote = ""
 GuildNoteUpdater.debugEnabled = false
@@ -296,7 +296,7 @@ function GuildNoteUpdater:UpdateNotePreview()
         else
             color = "|cFFFF0000"
         end
-        previewText:SetText("|cFFAAAAAAPreview:|r " .. note)
+        previewText:SetText(note)
         charCountText:SetText(color .. charCount .. "/" .. MAX_NOTE_LENGTH .. "|r")
     else
         if not self.enabledCharacters[characterKey] then
@@ -507,15 +507,20 @@ local function PrintRosterSummary(mainsOnly)
                 local c = RAID_CLASS_COLORS[m.class]
                 nameColor = string.format("|cFF%02X%02X%02X", math.floor(c.r * 255), math.floor(c.g * 255), math.floor(c.b * 255))
             end
-            print(string.format("  %s%s|r — %d%s", nameColor, m.name, m.ilvl, detail))
+            print(string.format("  %s%s|r â€” %d%s", nameColor, m.name, m.ilvl, detail))
         end
     end)
 end
 
--- Creates the settings UI frame with all controls and dropdowns
+-- Creates the settings UI frame with scroll frame, three grouped sections, and pinned preview bar
 function GuildNoteUpdater:CreateUI()
+    local CONTENT_WIDTH = 452
+    local LABEL_X = 14
+    local INDENT_X = 34
+    local SECTION_COLOR = "|cFFFFD100"
+
     local frame = CreateFrame("Frame", "GuildNoteUpdaterUI", UIParent, "BasicFrameTemplateWithInset")
-    frame:SetSize(500, 490)
+    frame:SetSize(520, 420)
     frame:SetPoint("CENTER")
     frame:Hide()
     self.settingsFrame = frame
@@ -541,38 +546,163 @@ function GuildNoteUpdater:CreateUI()
 
     local characterKey = self:GetCharacterKey()
 
-    -- === Left column checkboxes ===
+    -- === Scroll Frame ===
 
-    local enableButton = CreateFrame("CheckButton", nil, frame, "UICheckButtonTemplate")
-    enableButton:SetPoint("TOPLEFT", 20, -32)
-    enableButton.text:SetFontObject("GameFontNormal")
-    enableButton.text:SetText("Enable for this character")
-    enableButton:SetChecked(self.enabledCharacters[characterKey] or false)
-    enableButton:SetScript("OnClick", function(btn)
+    local scrollFrame = CreateFrame("ScrollFrame", "GuildNoteUpdaterScrollFrame", frame, "UIPanelScrollFrameTemplate")
+    scrollFrame:SetPoint("TOPLEFT", frame, "TOPLEFT", 8, -30)
+    scrollFrame:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -28, 100)
+
+    local scrollChild = CreateFrame("Frame", "GuildNoteUpdaterScrollChild", scrollFrame)
+    scrollChild:SetWidth(CONTENT_WIDTH)
+    scrollFrame:SetScrollChild(scrollChild)
+
+    -- layoutY tracks vertical position in scroll child (always negative, moves down)
+    local layoutY = -8
+
+    -- Forward declarations for dropdown cross-references
+    local specUpdateDropdown, specDropdown
+    local itemLevelDropdown, mainAltDropdown, noteFormatDropdown, updateTriggerDropdown
+
+    -- Helper: add a section header and advance layoutY
+    local function SectionHeader(text)
+        layoutY = layoutY - 6
+        local fs = scrollChild:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        fs:SetPoint("TOPLEFT", LABEL_X, layoutY)
+        fs:SetText(SECTION_COLOR .. "â”€â”€ " .. text .. " â”€â”€|r")
+        layoutY = layoutY - 20
+        return fs
+    end
+
+    -- Helper: add a labelled checkbox and advance layoutY
+    local function AddCheckbox(labelText, isChecked, onClick)
+        local cb = CreateFrame("CheckButton", nil, scrollChild, "UICheckButtonTemplate")
+        cb:SetPoint("TOPLEFT", LABEL_X - 2, layoutY + 2)
+        cb.text:SetFontObject("GameFontNormal")
+        cb.text:SetText(labelText)
+        cb:SetChecked(isChecked)
+        cb:SetScript("OnClick", onClick)
+        layoutY = layoutY - 26
+        return cb
+    end
+
+    -- Helper: add a label+dropdown row and advance layoutY
+    -- indented=true shifts the row right to show visual subordination
+    local function AddDropdown(ddName, labelText, initFn, width, currentText, indented)
+        local x = indented and INDENT_X or LABEL_X
+        local lbl = scrollChild:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        lbl:SetPoint("TOPLEFT", x, layoutY - 5)
+        lbl:SetText(labelText)
+        local dd = CreateFrame("Frame", ddName, scrollChild, "UIDropDownMenuTemplate")
+        dd:SetPoint("TOPLEFT", x + 100, layoutY + 8)
+        UIDropDownMenu_Initialize(dd, initFn)
+        UIDropDownMenu_SetWidth(dd, width or 130)
+        UIDropDownMenu_SetText(dd, currentText)
+        layoutY = layoutY - 36
+        return dd
+    end
+
+    -- =============================================
+    -- SECTION: Note Content
+    -- =============================================
+    SectionHeader("Note Content")
+
+    itemLevelDropdown = AddDropdown(
+        "GuildNoteUpdaterItemLevelDropdown",
+        "Item Level Type",
+        function(dd, level)
+            local key = GuildNoteUpdater:GetCharacterKey()
+            local info = UIDropDownMenu_CreateInfo()
+            for _, opt in ipairs({"Overall", "Equipped"}) do
+                info.text, info.value = opt, opt
+                info.func = function(btn)
+                    local k = GuildNoteUpdater:GetCharacterKey()
+                    GuildNoteUpdater.itemLevelType[k] = btn.value
+                    UIDropDownMenu_SetText(itemLevelDropdown, btn.value)
+                    GuildNoteUpdaterSettings.itemLevelType = GuildNoteUpdater.itemLevelType
+                    GuildNoteUpdater:UpdateGuildNote()
+                end
+                info.checked = (GuildNoteUpdater.itemLevelType[key] == opt)
+                UIDropDownMenu_AddButton(info, level)
+            end
+        end,
+        130, self.itemLevelType[characterKey] or "Overall"
+    )
+
+    AddCheckbox("Show item level", self.enableItemLevel[characterKey] ~= false, function(btn)
         local key = GuildNoteUpdater:GetCharacterKey()
-        GuildNoteUpdater.enabledCharacters[key] = btn:GetChecked()
-        GuildNoteUpdaterSettings.enabledCharacters = GuildNoteUpdater.enabledCharacters
+        GuildNoteUpdater.enableItemLevel[key] = btn:GetChecked()
+        GuildNoteUpdaterSettings.enableItemLevel = GuildNoteUpdater.enableItemLevel
         GuildNoteUpdater:UpdateGuildNote()
     end)
 
-    local enableSpecButton = CreateFrame("CheckButton", nil, frame, "UICheckButtonTemplate")
-    enableSpecButton:SetPoint("TOPLEFT", 20, -58)
-    enableSpecButton.text:SetFontObject("GameFontNormal")
-    enableSpecButton.text:SetText("Show spec")
-    enableSpecButton:SetChecked(self.enableSpec[characterKey] ~= false)
-    enableSpecButton:SetScript("OnClick", function(btn)
+    AddCheckbox("Show spec", self.enableSpec[characterKey] ~= false, function(btn)
         local key = GuildNoteUpdater:GetCharacterKey()
         GuildNoteUpdater.enableSpec[key] = btn:GetChecked()
         GuildNoteUpdaterSettings.enableSpec = GuildNoteUpdater.enableSpec
         GuildNoteUpdater:UpdateGuildNote()
     end)
 
-    local enableProfessionsButton = CreateFrame("CheckButton", nil, frame, "UICheckButtonTemplate")
-    enableProfessionsButton:SetPoint("TOPLEFT", 20, -84)
-    enableProfessionsButton.text:SetFontObject("GameFontNormal")
-    enableProfessionsButton.text:SetText("Show professions")
-    enableProfessionsButton:SetChecked(self.enableProfessions[characterKey] == true)
-    enableProfessionsButton:SetScript("OnClick", function(btn)
+    -- Update spec and Spec selector are subordinate (indented) under Show spec
+    specUpdateDropdown = AddDropdown(
+        "GuildNoteUpdaterSpecUpdateDropdown",
+        "Update spec",
+        function(dd, level)
+            local key = GuildNoteUpdater:GetCharacterKey()
+            local info = UIDropDownMenu_CreateInfo()
+            for _, opt in ipairs({"Automatically", "Manually"}) do
+                info.text, info.value = opt, opt
+                info.func = function(btn)
+                    local k = GuildNoteUpdater:GetCharacterKey()
+                    GuildNoteUpdater.specUpdateMode[k] = btn.value
+                    UIDropDownMenu_SetText(specUpdateDropdown, btn.value)
+                    GuildNoteUpdaterSettings.specUpdateMode = GuildNoteUpdater.specUpdateMode
+                    if btn.value == "Manually" then
+                        UIDropDownMenu_EnableDropDown(specDropdown)
+                    else
+                        UIDropDownMenu_DisableDropDown(specDropdown)
+                    end
+                    GuildNoteUpdater:UpdateGuildNote()
+                end
+                info.checked = (GuildNoteUpdater.specUpdateMode[key] == opt)
+                UIDropDownMenu_AddButton(info, level)
+            end
+        end,
+        130, self.specUpdateMode[characterKey] or "Automatically",
+        true  -- indented
+    )
+
+    specDropdown = AddDropdown(
+        "GuildNoteUpdaterSpecDropdown",
+        "Spec",
+        function(dd, level)
+            local key = GuildNoteUpdater:GetCharacterKey()
+            local info = UIDropDownMenu_CreateInfo()
+            info.text, info.value = "Select Spec", "Select Spec"
+            info.func = function(btn)
+                local k = GuildNoteUpdater:GetCharacterKey()
+                GuildNoteUpdater.selectedSpec[k] = btn.value
+                UIDropDownMenu_SetText(specDropdown, btn.value)
+                GuildNoteUpdaterSettings.selectedSpec = GuildNoteUpdater.selectedSpec
+                GuildNoteUpdater:UpdateGuildNote()
+            end
+            info.checked = (GuildNoteUpdater.selectedSpec[key] == "Select Spec")
+            UIDropDownMenu_AddButton(info, level)
+            for i = 1, GetNumSpecializations() do
+                local _, specName = GetSpecializationInfo(i)
+                info.text, info.value = specName, specName
+                info.checked = (specName == GuildNoteUpdater.selectedSpec[key])
+                UIDropDownMenu_AddButton(info, level)
+            end
+        end,
+        130, self.selectedSpec[characterKey] or "Select Spec",
+        true  -- indented
+    )
+
+    if self.specUpdateMode[characterKey] == "Automatically" or not self.specUpdateMode[characterKey] then
+        UIDropDownMenu_DisableDropDown(specDropdown)
+    end
+
+    AddCheckbox("Show professions", self.enableProfessions[characterKey] == true, function(btn)
         local key = GuildNoteUpdater:GetCharacterKey()
         local isChecked = btn:GetChecked()
         GuildNoteUpdater.enableProfessions[key] = isChecked
@@ -580,226 +710,66 @@ function GuildNoteUpdater:CreateUI()
         GuildNoteUpdater:UpdateGuildNote()
     end)
 
-    -- === Right column checkboxes ===
-
-    local enableDebugButton = CreateFrame("CheckButton", nil, frame, "UICheckButtonTemplate")
-    enableDebugButton:SetPoint("TOPRIGHT", -140, -32)
-    enableDebugButton.text:SetFontObject("GameFontNormal")
-    enableDebugButton.text:SetText("Enable Debug")
-    enableDebugButton:SetChecked(self.debugEnabled)
-    enableDebugButton:SetScript("OnClick", function(btn)
-        GuildNoteUpdater.debugEnabled = btn:GetChecked()
-        print("Debug mode is now " .. (GuildNoteUpdater.debugEnabled and "enabled" or "disabled"))
-        GuildNoteUpdaterSettings.debugEnabled = GuildNoteUpdater.debugEnabled
-    end)
-
-    local enableTooltipButton = CreateFrame("CheckButton", nil, frame, "UICheckButtonTemplate")
-    enableTooltipButton:SetPoint("TOPRIGHT", -140, -58)
-    enableTooltipButton.text:SetFontObject("GameFontNormal")
-    enableTooltipButton.text:SetText("Parse tooltip notes")
-    enableTooltipButton:SetChecked(self.enableTooltipParsing ~= false)
-    enableTooltipButton:SetScript("OnClick", function(btn)
-        GuildNoteUpdater.enableTooltipParsing = btn:GetChecked()
-        GuildNoteUpdaterSettings.enableTooltipParsing = GuildNoteUpdater.enableTooltipParsing
-    end)
-
-    local showNotificationButton = CreateFrame("CheckButton", nil, frame, "UICheckButtonTemplate")
-    showNotificationButton:SetPoint("TOPRIGHT", -140, -84)
-    showNotificationButton.text:SetFontObject("GameFontNormal")
-    showNotificationButton.text:SetText("Update notification")
-    showNotificationButton:SetChecked(self.showUpdateNotification ~= false)
-    showNotificationButton:SetScript("OnClick", function(btn)
-        GuildNoteUpdater.showUpdateNotification = btn:GetChecked()
-        GuildNoteUpdaterSettings.showUpdateNotification = GuildNoteUpdater.showUpdateNotification
-    end)
-
-    local showItemLevelButton = CreateFrame("CheckButton", nil, frame, "UICheckButtonTemplate")
-    showItemLevelButton:SetPoint("TOPLEFT", 20, -110)
-    showItemLevelButton.text:SetFontObject("GameFontNormal")
-    showItemLevelButton.text:SetText("Show item level")
-    showItemLevelButton:SetChecked(self.enableItemLevel[characterKey] ~= false)
-    showItemLevelButton:SetScript("OnClick", function(btn)
-        local key = GuildNoteUpdater:GetCharacterKey()
-        GuildNoteUpdater.enableItemLevel[key] = btn:GetChecked()
-        GuildNoteUpdaterSettings.enableItemLevel = GuildNoteUpdater.enableItemLevel
-        GuildNoteUpdater:UpdateGuildNote()
-    end)
-
-    local showMainAltButton = CreateFrame("CheckButton", nil, frame, "UICheckButtonTemplate")
-    showMainAltButton:SetPoint("TOPLEFT", 20, -136)
-    showMainAltButton.text:SetFontObject("GameFontNormal")
-    showMainAltButton.text:SetText("Show main/alt")
-    showMainAltButton:SetChecked(self.enableMainAlt[characterKey] ~= false)
-    showMainAltButton:SetScript("OnClick", function(btn)
+    AddCheckbox("Show main/alt status", self.enableMainAlt[characterKey] ~= false, function(btn)
         local key = GuildNoteUpdater:GetCharacterKey()
         GuildNoteUpdater.enableMainAlt[key] = btn:GetChecked()
         GuildNoteUpdaterSettings.enableMainAlt = GuildNoteUpdater.enableMainAlt
         GuildNoteUpdater:UpdateGuildNote()
     end)
 
-    local noteLockButton = CreateFrame("CheckButton", nil, frame, "UICheckButtonTemplate")
-    noteLockButton:SetPoint("TOPRIGHT", -140, -110)
-    noteLockButton.text:SetFontObject("GameFontNormal")
-    noteLockButton.text:SetText("Lock note")
-    noteLockButton:SetChecked(self.noteLocked[characterKey] == true)
-    noteLockButton:SetScript("OnClick", function(btn)
-        local key = GuildNoteUpdater:GetCharacterKey()
-        GuildNoteUpdater.noteLocked[key] = btn:GetChecked()
-        GuildNoteUpdaterSettings.noteLocked = GuildNoteUpdater.noteLocked
-    end)
-
-    local showMinimapButton = CreateFrame("CheckButton", nil, frame, "UICheckButtonTemplate")
-    showMinimapButton:SetPoint("TOPRIGHT", -140, -136)
-    showMinimapButton.text:SetFontObject("GameFontNormal")
-    showMinimapButton.text:SetText("Show minimap button")
-    local mbSettings = GuildNoteUpdaterSettings.minimapButton
-    showMinimapButton:SetChecked(not mbSettings or mbSettings.enabled ~= false)
-    showMinimapButton:SetScript("OnClick", function(btn)
-        GuildNoteUpdaterSettings.minimapButton.enabled = btn:GetChecked()
-        if GuildNoteUpdater.minimapButton then
-            if btn:GetChecked() then
-                GuildNoteUpdater.minimapButton:Show()
-            else
-                GuildNoteUpdater.minimapButton:Hide()
+    -- Main or Alt selector is subordinate (indented) under Show main/alt
+    mainAltDropdown = AddDropdown(
+        "GuildNoteUpdaterMainAltDropdown",
+        "Main or Alt",
+        function(dd, level)
+            local key = GuildNoteUpdater:GetCharacterKey()
+            local info = UIDropDownMenu_CreateInfo()
+            for _, opt in ipairs({"<None>", "Main", "Alt"}) do
+                info.text, info.value = opt, opt
+                info.func = function(btn)
+                    local k = GuildNoteUpdater:GetCharacterKey()
+                    GuildNoteUpdater.mainOrAlt[k] = btn.value
+                    UIDropDownMenu_SetText(mainAltDropdown, btn.value)
+                    GuildNoteUpdaterSettings.mainOrAlt = GuildNoteUpdater.mainOrAlt
+                    GuildNoteUpdater:UpdateGuildNote()
+                end
+                info.checked = (GuildNoteUpdater.mainOrAlt[key] == opt)
+                UIDropDownMenu_AddButton(info, level)
             end
-        end
-    end)
+        end,
+        130, self.mainOrAlt[characterKey] or "<None>",
+        true  -- indented
+    )
 
-    -- === Dropdowns section ===
+    noteFormatDropdown = AddDropdown(
+        "GuildNoteUpdaterNoteFormatDropdown",
+        "Note Format",
+        function(dd, level)
+            local info = UIDropDownMenu_CreateInfo()
+            for _, opt in ipairs({"Standard", "Compact", "Professions First"}) do
+                info.text, info.value = opt, opt
+                info.func = function(btn)
+                    GuildNoteUpdater.noteFormat = btn.value
+                    UIDropDownMenu_SetText(noteFormatDropdown, btn.value)
+                    GuildNoteUpdaterSettings.noteFormat = btn.value
+                    GuildNoteUpdater:UpdateGuildNote()
+                end
+                info.checked = (GuildNoteUpdater.noteFormat == opt)
+                UIDropDownMenu_AddButton(info, level)
+            end
+        end,
+        140, self.noteFormat or "Standard"
+    )
 
-    local specUpdateLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    specUpdateLabel:SetPoint("TOPLEFT", 27, -170)
-    specUpdateLabel:SetText("Update spec")
-
-    local specUpdateDropdown = CreateFrame("Frame", "GuildNoteUpdaterSpecUpdateDropdown", frame, "UIDropDownMenuTemplate")
-    specUpdateDropdown:SetPoint("LEFT", specUpdateLabel, "RIGHT", 30, 0)
-
-    local specDropdown = CreateFrame("Frame", "GuildNoteUpdaterSpecDropdown", frame, "UIDropDownMenuTemplate")
-    specDropdown:SetPoint("TOPLEFT", specUpdateDropdown, "BOTTOMLEFT", 0, -5)
-
-    local function OnSpecUpdateSelect(btn)
-        local key = GuildNoteUpdater:GetCharacterKey()
-        GuildNoteUpdater.specUpdateMode[key] = btn.value
-        UIDropDownMenu_SetText(specUpdateDropdown, btn.value)
-        GuildNoteUpdaterSettings.specUpdateMode = GuildNoteUpdater.specUpdateMode
-        if btn.value == "Manually" then
-            UIDropDownMenu_EnableDropDown(specDropdown)
-        else
-            UIDropDownMenu_DisableDropDown(specDropdown)
-        end
-        GuildNoteUpdater:UpdateGuildNote()
-    end
-
-    local function InitializeSpecUpdateDropdown(dropdown, level)
-        local key = GuildNoteUpdater:GetCharacterKey()
-        local info = UIDropDownMenu_CreateInfo()
-        info.text, info.value, info.func = "Automatically", "Automatically", OnSpecUpdateSelect
-        info.checked = (GuildNoteUpdater.specUpdateMode[key] == "Automatically")
-        UIDropDownMenu_AddButton(info, level)
-        info.text, info.value = "Manually", "Manually"
-        info.checked = (GuildNoteUpdater.specUpdateMode[key] == "Manually")
-        UIDropDownMenu_AddButton(info, level)
-    end
-
-    UIDropDownMenu_Initialize(specUpdateDropdown, InitializeSpecUpdateDropdown)
-    UIDropDownMenu_SetWidth(specUpdateDropdown, 120)
-    UIDropDownMenu_SetText(specUpdateDropdown, self.specUpdateMode[characterKey] or "Automatically")
-
-    local function OnSpecSelect(btn)
-        local key = GuildNoteUpdater:GetCharacterKey()
-        GuildNoteUpdater.selectedSpec[key] = btn.value
-        UIDropDownMenu_SetText(specDropdown, btn.value)
-        GuildNoteUpdaterSettings.selectedSpec = GuildNoteUpdater.selectedSpec
-        GuildNoteUpdater:UpdateGuildNote()
-    end
-
-    local function InitializeSpecDropdown(dropdown, level)
-        local key = GuildNoteUpdater:GetCharacterKey()
-        local info = UIDropDownMenu_CreateInfo()
-        info.text, info.value, info.func = "Select Spec", "Select Spec", OnSpecSelect
-        info.checked = (GuildNoteUpdater.selectedSpec[key] == "Select Spec")
-        UIDropDownMenu_AddButton(info, level)
-        for i = 1, GetNumSpecializations() do
-            local _, specName = GetSpecializationInfo(i)
-            info.text, info.value = specName, specName
-            info.checked = (specName == GuildNoteUpdater.selectedSpec[key])
-            UIDropDownMenu_AddButton(info, level)
-        end
-    end
-
-    UIDropDownMenu_Initialize(specDropdown, InitializeSpecDropdown)
-    UIDropDownMenu_SetWidth(specDropdown, 120)
-    UIDropDownMenu_SetText(specDropdown, self.selectedSpec[characterKey] or "Select Spec")
-    if self.specUpdateMode[characterKey] == "Automatically" or not self.specUpdateMode[characterKey] then
-        UIDropDownMenu_DisableDropDown(specDropdown)
-    end
-
-    local itemLevelTypeLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    itemLevelTypeLabel:SetPoint("TOPLEFT", 27, -240)
-    itemLevelTypeLabel:SetText("Item Level Type")
-
-    local itemLevelDropdown = CreateFrame("Frame", "GuildNoteUpdaterItemLevelDropdown", frame, "UIDropDownMenuTemplate")
-    itemLevelDropdown:SetPoint("LEFT", itemLevelTypeLabel, "RIGHT", 10, 0)
-
-    local function OnItemLevelSelect(btn)
-        local key = GuildNoteUpdater:GetCharacterKey()
-        GuildNoteUpdater.itemLevelType[key] = btn.value
-        UIDropDownMenu_SetText(itemLevelDropdown, btn.value)
-        GuildNoteUpdaterSettings.itemLevelType = GuildNoteUpdater.itemLevelType
-        GuildNoteUpdater:UpdateGuildNote()
-    end
-
-    local function InitializeItemLevelDropdown(dropdown, level)
-        local key = GuildNoteUpdater:GetCharacterKey()
-        local info = UIDropDownMenu_CreateInfo()
-        info.text, info.value, info.func = "Overall", "Overall", OnItemLevelSelect
-        info.checked = (GuildNoteUpdater.itemLevelType[key] == "Overall")
-        UIDropDownMenu_AddButton(info, level)
-        info.text, info.value = "Equipped", "Equipped"
-        info.checked = (GuildNoteUpdater.itemLevelType[key] == "Equipped")
-        UIDropDownMenu_AddButton(info, level)
-    end
-
-    UIDropDownMenu_Initialize(itemLevelDropdown, InitializeItemLevelDropdown)
-    UIDropDownMenu_SetWidth(itemLevelDropdown, 120)
-    UIDropDownMenu_SetText(itemLevelDropdown, self.itemLevelType[characterKey] or "Overall")
-
-    local mainAltLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    mainAltLabel:SetPoint("TOPLEFT", 27, -277)
-    mainAltLabel:SetText("Main or Alt")
-
-    local mainAltDropdown = CreateFrame("Frame", "GuildNoteUpdaterMainAltDropdown", frame, "UIDropDownMenuTemplate")
-    mainAltDropdown:SetPoint("LEFT", mainAltLabel, "RIGHT", 38, 0)
-
-    local function OnMainAltSelect(btn)
-        local key = GuildNoteUpdater:GetCharacterKey()
-        GuildNoteUpdater.mainOrAlt[key] = btn.value
-        UIDropDownMenu_SetText(mainAltDropdown, btn.value)
-        GuildNoteUpdaterSettings.mainOrAlt = GuildNoteUpdater.mainOrAlt
-        GuildNoteUpdater:UpdateGuildNote()
-    end
-
-    local function InitializeMainAltDropdown(dropdown, level)
-        local key = GuildNoteUpdater:GetCharacterKey()
-        local info = UIDropDownMenu_CreateInfo()
-        for _, opt in ipairs({"<None>", "Main", "Alt"}) do
-            info.text, info.value, info.func = opt, opt, OnMainAltSelect
-            info.checked = (GuildNoteUpdater.mainOrAlt[key] == opt)
-            UIDropDownMenu_AddButton(info, level)
-        end
-    end
-
-    UIDropDownMenu_Initialize(mainAltDropdown, InitializeMainAltDropdown)
-    UIDropDownMenu_SetWidth(mainAltDropdown, 120)
-    UIDropDownMenu_SetText(mainAltDropdown, self.mainOrAlt[characterKey] or "<None>")
-
-    local notePrefixLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    notePrefixLabel:SetPoint("TOPLEFT", 27, -314)
+    -- Note Prefix editbox + (?) hint tooltip
+    layoutY = layoutY - 4
+    local notePrefixLabel = scrollChild:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    notePrefixLabel:SetPoint("TOPLEFT", LABEL_X, layoutY - 5)
     notePrefixLabel:SetText("Note Prefix")
 
-    local notePrefixText = CreateFrame("EditBox", nil, frame, "InputBoxTemplate")
+    local notePrefixText = CreateFrame("EditBox", nil, scrollChild, "InputBoxTemplate")
     notePrefixText:SetSize(130, 20)
-    notePrefixText:SetPoint("LEFT", notePrefixLabel, "RIGHT", 62, 0)
+    notePrefixText:SetPoint("TOPLEFT", LABEL_X + 104, layoutY)
     notePrefixText:SetAutoFocus(false)
     notePrefixText:SetMaxLetters(12)
     local prefixValue = self.notePrefix[characterKey]
@@ -817,75 +787,138 @@ function GuildNoteUpdater:CreateUI()
     notePrefixText:SetScript("OnEditFocusLost", SaveNotePrefix)
     notePrefixText:SetScript("OnEscapePressed", function(editBox) editBox:ClearFocus() end)
 
-    local updateTriggerLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    updateTriggerLabel:SetPoint("TOPLEFT", 27, -345)
-    updateTriggerLabel:SetText("Update trigger")
+    -- (?) hover hint explaining Note Prefix
+    local hintFrame = CreateFrame("Frame", nil, scrollChild)
+    hintFrame:SetSize(20, 20)
+    hintFrame:SetPoint("LEFT", notePrefixText, "RIGHT", 4, 0)
+    local hintFS = hintFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    hintFS:SetAllPoints()
+    hintFS:SetText("|cFFAAAAFF(?)|r")
+    hintFrame:EnableMouse(true)
+    hintFrame:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText("Note Prefix", 1, 0.82, 0)
+        GameTooltip:AddLine("Text prepended to every note, followed by ' - '.\nExample: 'R' produces 'R - 489 Feral LW Main'", 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+    hintFrame:SetScript("OnLeave", function() GameTooltip:Hide() end)
 
-    local updateTriggerDropdown = CreateFrame("Frame", "GuildNoteUpdaterUpdateTriggerDropdown", frame, "UIDropDownMenuTemplate")
-    updateTriggerDropdown:SetPoint("LEFT", updateTriggerLabel, "RIGHT", 18, 0)
+    layoutY = layoutY - 30
 
-    local function OnUpdateTriggerSelect(btn)
-        GuildNoteUpdater.updateTrigger = btn.value
-        UIDropDownMenu_SetText(updateTriggerDropdown, btn.value)
-        GuildNoteUpdaterSettings.updateTrigger = btn.value
-    end
+    -- =============================================
+    -- SECTION: General
+    -- =============================================
+    layoutY = layoutY - 10
+    SectionHeader("General")
 
-    local function InitializeUpdateTriggerDropdown(dropdown, level)
-        local info = UIDropDownMenu_CreateInfo()
-        for _, opt in ipairs({"On Events", "On Login Only", "Manual Only"}) do
-            info.text, info.value, info.func = opt, opt, OnUpdateTriggerSelect
-            info.checked = (GuildNoteUpdater.updateTrigger == opt)
-            UIDropDownMenu_AddButton(info, level)
-        end
-    end
-
-    UIDropDownMenu_Initialize(updateTriggerDropdown, InitializeUpdateTriggerDropdown)
-    UIDropDownMenu_SetWidth(updateTriggerDropdown, 120)
-    UIDropDownMenu_SetText(updateTriggerDropdown, self.updateTrigger or "On Events")
-
-    local noteFormatLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    noteFormatLabel:SetPoint("TOPLEFT", 27, -381)
-    noteFormatLabel:SetText("Note format")
-
-    local noteFormatDropdown = CreateFrame("Frame", "GuildNoteUpdaterNoteFormatDropdown", frame, "UIDropDownMenuTemplate")
-    noteFormatDropdown:SetPoint("LEFT", noteFormatLabel, "RIGHT", 30, 0)
-
-    local function OnNoteFormatSelect(btn)
-        GuildNoteUpdater.noteFormat = btn.value
-        UIDropDownMenu_SetText(noteFormatDropdown, btn.value)
-        GuildNoteUpdaterSettings.noteFormat = btn.value
+    AddCheckbox("Enable for this character", self.enabledCharacters[characterKey] or false, function(btn)
+        local key = GuildNoteUpdater:GetCharacterKey()
+        GuildNoteUpdater.enabledCharacters[key] = btn:GetChecked()
+        GuildNoteUpdaterSettings.enabledCharacters = GuildNoteUpdater.enabledCharacters
         GuildNoteUpdater:UpdateGuildNote()
-    end
+    end)
 
-    local function InitializeNoteFormatDropdown(dropdown, level)
-        local info = UIDropDownMenu_CreateInfo()
-        for _, opt in ipairs({"Standard", "Compact", "Professions First"}) do
-            info.text, info.value, info.func = opt, opt, OnNoteFormatSelect
-            info.checked = (GuildNoteUpdater.noteFormat == opt)
-            UIDropDownMenu_AddButton(info, level)
+    AddCheckbox("Lock note (prevent auto-updates)", self.noteLocked[characterKey] == true, function(btn)
+        local key = GuildNoteUpdater:GetCharacterKey()
+        GuildNoteUpdater.noteLocked[key] = btn:GetChecked()
+        GuildNoteUpdaterSettings.noteLocked = GuildNoteUpdater.noteLocked
+    end)
+
+    local mbSettings = GuildNoteUpdaterSettings.minimapButton
+    AddCheckbox("Show minimap button", not mbSettings or mbSettings.enabled ~= false, function(btn)
+        GuildNoteUpdaterSettings.minimapButton.enabled = btn:GetChecked()
+        if GuildNoteUpdater.minimapButton then
+            if btn:GetChecked() then
+                GuildNoteUpdater.minimapButton:Show()
+            else
+                GuildNoteUpdater.minimapButton:Hide()
+            end
         end
-    end
+    end)
 
-    UIDropDownMenu_Initialize(noteFormatDropdown, InitializeNoteFormatDropdown)
-    UIDropDownMenu_SetWidth(noteFormatDropdown, 140)
-    UIDropDownMenu_SetText(noteFormatDropdown, self.noteFormat or "Standard")
+    updateTriggerDropdown = AddDropdown(
+        "GuildNoteUpdaterUpdateTriggerDropdown",
+        "Update Trigger",
+        function(dd, level)
+            local info = UIDropDownMenu_CreateInfo()
+            for _, opt in ipairs({"On Events", "On Login Only", "Manual Only"}) do
+                info.text, info.value = opt, opt
+                info.func = function(btn)
+                    GuildNoteUpdater.updateTrigger = btn.value
+                    UIDropDownMenu_SetText(updateTriggerDropdown, btn.value)
+                    GuildNoteUpdaterSettings.updateTrigger = btn.value
+                end
+                info.checked = (GuildNoteUpdater.updateTrigger == opt)
+                UIDropDownMenu_AddButton(info, level)
+            end
+        end,
+        140, self.updateTrigger or "On Events"
+    )
 
-    -- === Note Preview (FEAT-001) ===
+    -- =============================================
+    -- SECTION: Advanced
+    -- =============================================
+    layoutY = layoutY - 10
+    SectionHeader("Advanced")
 
-    local divider = frame:CreateTexture(nil, "ARTWORK")
-    divider:SetHeight(1)
-    divider:SetPoint("TOPLEFT", 15, -414)
-    divider:SetPoint("TOPRIGHT", -15, -414)
-    divider:SetColorTexture(0.5, 0.5, 0.5, 0.5)
+    AddCheckbox("Enable debug output", self.debugEnabled, function(btn)
+        GuildNoteUpdater.debugEnabled = btn:GetChecked()
+        print("Debug mode is now " .. (GuildNoteUpdater.debugEnabled and "enabled" or "disabled"))
+        GuildNoteUpdaterSettings.debugEnabled = GuildNoteUpdater.debugEnabled
+    end)
 
-    previewText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    previewText:SetPoint("TOPLEFT", 27, -427)
-    previewText:SetPoint("RIGHT", frame, "RIGHT", -70, 0)
+    AddCheckbox("Parse tooltip notes", self.enableTooltipParsing ~= false, function(btn)
+        GuildNoteUpdater.enableTooltipParsing = btn:GetChecked()
+        GuildNoteUpdaterSettings.enableTooltipParsing = GuildNoteUpdater.enableTooltipParsing
+    end)
+
+    AddCheckbox("Show update notification", self.showUpdateNotification ~= false, function(btn)
+        GuildNoteUpdater.showUpdateNotification = btn:GetChecked()
+        GuildNoteUpdaterSettings.showUpdateNotification = GuildNoteUpdater.showUpdateNotification
+    end)
+
+    layoutY = layoutY - 20
+    scrollChild:SetHeight(math.abs(layoutY) + 10)
+
+    -- =============================================
+    -- PREVIEW BAR (pinned outside scroll frame, always visible)
+    -- =============================================
+    local previewLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    previewLabel:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 18, 86)
+    previewLabel:SetText("|cFFAAAAAAAAPreview|r")
+
+    charCountText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    charCountText:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -18, 86)
+    charCountText:SetJustifyH("RIGHT")
+
+    -- Dark inset box for the note preview text
+    local previewBox = CreateFrame("Frame", nil, frame, "BackdropTemplate")
+    previewBox:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 12, 54)
+    previewBox:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -12, 54)
+    previewBox:SetHeight(28)
+    previewBox:SetBackdrop({
+        bgFile   = "Interface\\Buttons\\WHITE8X8",
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        edgeSize = 12,
+        insets   = { left = 3, right = 3, top = 3, bottom = 3 },
+    })
+    previewBox:SetBackdropColor(0.05, 0.05, 0.05, 0.9)
+    previewBox:SetBackdropBorderColor(0.4, 0.4, 0.4, 0.8)
+
+    previewText = previewBox:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    previewText:SetPoint("LEFT", previewBox, "LEFT", 8, 0)
+    previewText:SetPoint("RIGHT", previewBox, "RIGHT", -8, 0)
     previewText:SetJustifyH("LEFT")
 
-    charCountText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    charCountText:SetPoint("TOPRIGHT", -20, -427)
-    charCountText:SetJustifyH("RIGHT")
+    -- Force Update Now button (right-aligned, outside scroll frame)
+    local forceUpdateBtn = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+    forceUpdateBtn:SetSize(140, 22)
+    forceUpdateBtn:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -12, 24)
+    forceUpdateBtn:SetText("Force Update Now")
+    forceUpdateBtn:SetScript("OnClick", function()
+        GuildNoteUpdater.hasUpdated = false
+        GuildNoteUpdater:UpdateGuildNote()
+    end)
 
     self:UpdateNotePreview()
 
@@ -965,7 +998,7 @@ function GuildNoteUpdater:CreateMinimapButton()
     mask:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask", "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
     icon:AddMaskTexture(mask)
 
-    -- Circular border ring — 53x53 at TOPLEFT with no offset matches the
+    -- Circular border ring â€” 53x53 at TOPLEFT with no offset matches the
     -- MiniMap-TrackingBorder texture layout used by LibDBIcon-1.0 (standard pattern)
     local border = button:CreateTexture(nil, "OVERLAY")
     border:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
