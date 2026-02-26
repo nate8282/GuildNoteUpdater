@@ -156,14 +156,19 @@ function GuildNoteUpdater:BuildNoteString(characterKey)
     -- Guard: don't write ilvl 0 (inventory not loaded yet)
     if flooredItemLevel <= 0 then return nil end
 
+    local showItemLevel = self.enableItemLevel[characterKey] ~= false
+
     local spec = nil
     if self.enableSpec[characterKey] ~= false then
         spec = self:GetSpec(characterKey)
     end
 
-    local mainOrAlt = self.mainOrAlt[characterKey]
-    if mainOrAlt == "Select Option" or mainOrAlt == "<None>" then
-        mainOrAlt = nil
+    local mainOrAlt = nil
+    if self.enableMainAlt[characterKey] ~= false then
+        mainOrAlt = self.mainOrAlt[characterKey]
+        if mainOrAlt == "Select Option" or mainOrAlt == "<None>" then
+            mainOrAlt = nil
+        end
     end
 
     local profession1, profession2 = nil, nil
@@ -184,7 +189,7 @@ function GuildNoteUpdater:BuildNoteString(characterKey)
         table.insert(noteParts, notePrefix)
         table.insert(noteParts, "-")
     end
-    table.insert(noteParts, flooredItemLevel)
+    if showItemLevel then table.insert(noteParts, flooredItemLevel) end
     if spec then table.insert(noteParts, spec) end
     if self.enableProfessions[characterKey] then
         if profession1 then table.insert(noteParts, profession1) end
@@ -194,6 +199,8 @@ function GuildNoteUpdater:BuildNoteString(characterKey)
 
     local newNote = safeTrim(table.concat(noteParts, " ")) or ""
 
+    if newNote == "" then return nil end
+
     -- Truncate to fit 31-char guild note limit
     if #newNote > MAX_NOTE_LENGTH then
         self:DebugPrint("Note too long (" .. #newNote .. " chars), truncating...")
@@ -202,7 +209,7 @@ function GuildNoteUpdater:BuildNoteString(characterKey)
             table.insert(noteParts, string.sub(notePrefix, 1, 4))
             table.insert(noteParts, "-")
         end
-        table.insert(noteParts, flooredItemLevel)
+        if showItemLevel then table.insert(noteParts, flooredItemLevel) end
         if spec then table.insert(noteParts, string.sub(spec, 1, 4)) end
         if self.enableProfessions[characterKey] then
             if profession1 then table.insert(noteParts, string.sub(profession1, 1, 2)) end
@@ -278,6 +285,13 @@ function GuildNoteUpdater:UpdateGuildNote()
     end
 
     local characterKey = self:GetCharacterKey()
+
+    if self.noteLocked[characterKey] then
+        self:DebugPrint("Note is locked, skipping update")
+        self:UpdateNotePreview()
+        return
+    end
+
     local newNote = self:BuildNoteString(characterKey)
 
     if not newNote then
@@ -441,6 +455,41 @@ function GuildNoteUpdater:CreateUI()
     showNotificationButton:SetScript("OnClick", function(btn)
         GuildNoteUpdater.showUpdateNotification = btn:GetChecked()
         GuildNoteUpdaterSettings.showUpdateNotification = GuildNoteUpdater.showUpdateNotification
+    end)
+
+    local showItemLevelButton = CreateFrame("CheckButton", nil, frame, "UICheckButtonTemplate")
+    showItemLevelButton:SetPoint("TOPRIGHT", -140, -110)
+    showItemLevelButton.text:SetFontObject("GameFontNormal")
+    showItemLevelButton.text:SetText("Show item level")
+    showItemLevelButton:SetChecked(self.enableItemLevel[characterKey] ~= false)
+    showItemLevelButton:SetScript("OnClick", function(btn)
+        local key = GuildNoteUpdater:GetCharacterKey()
+        GuildNoteUpdater.enableItemLevel[key] = btn:GetChecked()
+        GuildNoteUpdaterSettings.enableItemLevel = GuildNoteUpdater.enableItemLevel
+        GuildNoteUpdater:UpdateGuildNote()
+    end)
+
+    local showMainAltButton = CreateFrame("CheckButton", nil, frame, "UICheckButtonTemplate")
+    showMainAltButton:SetPoint("TOPRIGHT", -140, -136)
+    showMainAltButton.text:SetFontObject("GameFontNormal")
+    showMainAltButton.text:SetText("Show main/alt")
+    showMainAltButton:SetChecked(self.enableMainAlt[characterKey] ~= false)
+    showMainAltButton:SetScript("OnClick", function(btn)
+        local key = GuildNoteUpdater:GetCharacterKey()
+        GuildNoteUpdater.enableMainAlt[key] = btn:GetChecked()
+        GuildNoteUpdaterSettings.enableMainAlt = GuildNoteUpdater.enableMainAlt
+        GuildNoteUpdater:UpdateGuildNote()
+    end)
+
+    local noteLockButton = CreateFrame("CheckButton", nil, frame, "UICheckButtonTemplate")
+    noteLockButton:SetPoint("TOPRIGHT", -140, -162)
+    noteLockButton.text:SetFontObject("GameFontNormal")
+    noteLockButton.text:SetText("Lock note")
+    noteLockButton:SetChecked(self.noteLocked[characterKey] == true)
+    noteLockButton:SetScript("OnClick", function(btn)
+        local key = GuildNoteUpdater:GetCharacterKey()
+        GuildNoteUpdater.noteLocked[key] = btn:GetChecked()
+        GuildNoteUpdaterSettings.noteLocked = GuildNoteUpdater.noteLocked
     end)
 
     -- === Dropdowns section ===
@@ -676,7 +725,8 @@ function GuildNoteUpdater:InitializeSettings()
             itemLevelType = {}, mainOrAlt = {}, enableProfessions = {},
             debugEnabled = false, notePrefix = {},
             enableSpec = {}, enableTooltipParsing = true,
-            showUpdateNotification = true
+            showUpdateNotification = true,
+            enableItemLevel = {}, enableMainAlt = {}, noteLocked = {}
         }
     end
 
@@ -691,6 +741,9 @@ function GuildNoteUpdater:InitializeSettings()
     self.enableSpec = GuildNoteUpdaterSettings.enableSpec or {}
     self.enableTooltipParsing = GuildNoteUpdaterSettings.enableTooltipParsing ~= false
     self.showUpdateNotification = GuildNoteUpdaterSettings.showUpdateNotification ~= false
+    self.enableItemLevel = GuildNoteUpdaterSettings.enableItemLevel or {}
+    self.enableMainAlt = GuildNoteUpdaterSettings.enableMainAlt or {}
+    self.noteLocked = GuildNoteUpdaterSettings.noteLocked or {}
 
     local characterKey = self:GetCharacterKey()
     if self.enableProfessions[characterKey] == nil then self.enableProfessions[characterKey] = true end
