@@ -78,6 +78,15 @@ GameTooltip.AddLine = function() end
 GameTooltip.AddDoubleLine = function() end
 GameTooltip.Show = function() end
 
+-- TooltipDataProcessor mock (Retail 9.0+ tooltip API - replaces OnTooltipSetUnit)
+-- See DEPRECATED_APIS.md for migration details
+TooltipDataProcessor = {
+    AddTooltipPostCall = function() end,
+}
+Enum = {
+    TooltipDataType = { Unit = 0 },
+}
+
 -- Load addon
 dofile("GuildNoteUpdater.lua")
 GuildNoteUpdaterSettings = nil

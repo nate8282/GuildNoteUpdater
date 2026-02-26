@@ -324,17 +324,15 @@ function GuildNoteUpdater:UpdateGuildNote()
 end
 
 -- Sets up tooltip hook to display parsed guild note data
+-- Uses TooltipDataProcessor API (Retail 9.0+) - OnTooltipSetUnit was removed in modern WoW
 function GuildNoteUpdater:SetupTooltipHook()
-    if not GameTooltip then return end
+    if not TooltipDataProcessor then return end
 
-    GameTooltip:HookScript("OnTooltipSetUnit", function(tooltip)
+    TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Unit, function(tooltip, data)
         if not GuildNoteUpdater.enableTooltipParsing then return end
         if not IsInGuild() then return end
 
-        local _, unit = tooltip:GetUnit()
-        if not unit then return end
-
-        local unitName = UnitName(unit)
+        local unitName = data and data.name
         if not unitName then return end
 
         for i = 1, GetNumGuildMembers() do
@@ -346,9 +344,7 @@ function GuildNoteUpdater:SetupTooltipHook()
                     if parsed and parsed.ilvl then
                         tooltip:AddLine(" ")
                         tooltip:AddLine("|cFF00FF00Guild Note:|r")
-                        if parsed.ilvl then
-                            tooltip:AddDoubleLine("  Item Level", parsed.ilvl, 1, 0.82, 0, 1, 1, 1)
-                        end
+                        tooltip:AddDoubleLine("  Item Level", parsed.ilvl, 1, 0.82, 0, 1, 1, 1)
                         if parsed.spec then
                             tooltip:AddDoubleLine("  Spec", parsed.spec, 1, 0.82, 0, 1, 1, 1)
                         elseif parsed.role then

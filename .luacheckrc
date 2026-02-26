@@ -56,8 +56,10 @@ read_globals = {
     "GetProfessions",
     "GetProfessionInfo",
 
-    -- Tooltip API
+    -- Tooltip API (9.0+ TooltipDataProcessor replaces OnTooltipSetUnit)
     "GameTooltip",
+    "TooltipDataProcessor",
+    "Enum",
 
     -- Utility
     "C_Timer",
@@ -81,7 +83,7 @@ files["spec/**"] = {
         "strsplit", "strtrim",
         "C_Timer", "C_GuildInfo", "SlashCmdList",
         "GuildNoteUpdater", "GuildNoteUpdaterSettings", "MockData",
-        "GameTooltip",
+        "GameTooltip", "TooltipDataProcessor", "Enum",
     },
     ignore = {
         "211",  -- Unused local variable (mock data)
@@ -114,7 +116,7 @@ files["tests/**"] = {
         "strsplit", "strtrim",
         "C_Timer", "C_GuildInfo", "SlashCmdList",
         "GuildNoteUpdater", "GuildNoteUpdaterSettings",
-        "GameTooltip",
+        "GameTooltip", "TooltipDataProcessor", "Enum",
     },
     ignore = { "211", "212", "213", "311" },
     read_globals = { "dofile", "setmetatable", "os" },

@@ -148,6 +148,20 @@ GameTooltip.AddDoubleLine = function(self, left, right)
 end
 GameTooltip.Show = function() end
 
+-- TooltipDataProcessor mock (Retail 9.0+ tooltip API - replaces OnTooltipSetUnit)
+-- See DEPRECATED_APIS.md for migration details
+TooltipDataProcessor = {
+    _callbacks = {},
+    AddTooltipPostCall = function(dataType, callback)
+        TooltipDataProcessor._callbacks[dataType] = callback
+    end,
+}
+Enum = {
+    TooltipDataType = {
+        Unit = 0,
+    },
+}
+
 -- Expose MockData globally so tests can modify it
 _G.MockData = MockData
 
