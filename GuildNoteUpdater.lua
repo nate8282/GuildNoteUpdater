@@ -756,13 +756,14 @@ function GuildNoteUpdater:CreateMinimapButton()
     -- Circular border ring (matches standard minimap button look)
     local border = button:CreateTexture(nil, "OVERLAY")
     border:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
-    border:SetSize(54, 54)
-    border:SetPoint("CENTER", button, "CENTER")
+    border:SetSize(52, 52)
+    border:SetPoint("TOPLEFT", button, "TOPLEFT", -14, 14)
 
-    -- Hover glow
+    -- Hover glow (ADD blend mode brightens instead of darkening)
     local highlight = button:CreateTexture(nil, "HIGHLIGHT")
     highlight:SetAllPoints()
     highlight:SetTexture("Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight")
+    highlight:SetBlendMode("ADD")
 
     button:SetScript("OnClick", function(self, mouseButton)
         if mouseButton == "LeftButton" and not self._dragging then
