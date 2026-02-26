@@ -63,6 +63,12 @@ function CreateFrame(frameType, frameName)
     return mockFrame(frameName)
 end
 UIParent = mockFrame("UIParent")
+UIParent.GetScale = function() return 1 end
+
+Minimap = mockFrame("Minimap")
+Minimap.GetCenter = function() return 400, 300 end
+
+function GetCursorPosition() return 400, 300 end
 
 -- Special frames table for ESC-to-close
 UISpecialFrames = {}
