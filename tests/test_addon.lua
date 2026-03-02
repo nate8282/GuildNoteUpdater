@@ -6,10 +6,10 @@ print("=== GuildNoteUpdater Test Suite ===\n")
 -- Mock data
 local mockPlayer = { name = "Kaelen", realm = "Sargeras" }
 local mockGuildMembers = {
-    { name = "Kaelen-Sargeras", note = "" },
-    { name = "Kaelen-Proudmoore", note = "" },
-    { name = "Nateicus-Sargeras", note = "" },
-    { name = "Dannic-Sargeras", note = "" },
+    { name = "Kaelen-Sargeras",   note = "", guid = "Player-1-00000001" },
+    { name = "Kaelen-Proudmoore", note = "", guid = "Player-1-00000002" },
+    { name = "Nateicus-Sargeras", note = "", guid = "Player-1-00000003" },
+    { name = "Dannic-Sargeras",   note = "", guid = "Player-1-00000004" },
 }
 local mockItemLevel = { overall = 489.5, equipped = 485.2 }
 local mockSpec = { index = 2, name = "Feral" }
@@ -46,14 +46,11 @@ function UIDropDownMenu_DisableDropDown() end
 function UnitName() return mockPlayer.name end
 function GetRealmName() return mockPlayer.realm end
 function GetNumGuildMembers() return #mockGuildMembers, #mockGuildMembers end
-function GetGuildRosterInfo(i) 
-    if mockGuildMembers[i] then
-        return mockGuildMembers[i].name, "Member", 1, 80, "Druid", "Zone", mockGuildMembers[i].note, "", true, 0, "DRUID", 1000, 1, false, false, 5, "guid"
+function GetGuildRosterInfo(i)
+    local m = mockGuildMembers[i]
+    if m then
+        return m.name, "Member", 1, 80, "Druid", "Zone", m.note, "", true, 0, "DRUID", 1000, 1, false, false, 5, m.guid
     end
-end
-function GuildRosterSetPublicNote(i, note)
-    updatedNotes[i] = note
-    mockGuildMembers[i].note = note
 end
 function GetAverageItemLevel() return mockItemLevel.overall, mockItemLevel.equipped, mockItemLevel.equipped end
 function GetSpecialization() return mockSpec.index end
@@ -74,7 +71,18 @@ C_Timer = {
     After = function(d, f) f() end,
     NewTimer = function(_, f) f(); return { Cancel = function() end } end,
 }
-C_GuildInfo = { GuildRoster = function() end }
+C_GuildInfo = {
+    GuildRoster = function() end,
+    SetNote = function(guid, note, isPublic)
+        for i, m in ipairs(mockGuildMembers) do
+            if m.guid == guid then
+                updatedNotes[i] = note
+                m.note = note
+                return
+            end
+        end
+    end,
+}
 SlashCmdList = {}
 UISpecialFrames = {}
 GameTooltip = mockFrame()

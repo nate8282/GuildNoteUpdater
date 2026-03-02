@@ -4,10 +4,10 @@
 local MockData = {
     player = { name = "Kaelen", realm = "Sargeras" },
     guildMembers = {
-        { name = "Kaelen-Sargeras", note = "" },
-        { name = "Kaelen-Proudmoore", note = "" },
-        { name = "Nateicus-Sargeras", note = "489 Feral LW Skn Main" },
-        { name = "Dannic-Sargeras", note = "" },
+        { name = "Kaelen-Sargeras",   note = "", guid = "Player-1-00000001" },
+        { name = "Kaelen-Proudmoore", note = "", guid = "Player-1-00000002" },
+        { name = "Nateicus-Sargeras", note = "489 Feral LW Skn Main", guid = "Player-1-00000003" },
+        { name = "Dannic-Sargeras",   note = "", guid = "Player-1-00000004" },
     },
     itemLevel = { overall = 489.5, equipped = 485.2 },
     spec = {
@@ -100,13 +100,7 @@ function GetNumGuildMembers() return #MockData.guildMembers, #MockData.guildMemb
 function GetGuildRosterInfo(i)
     local m = MockData.guildMembers[i]
     if m then
-        return m.name, "Member", 1, 80, "Druid", "Zone", m.note, "", true, 0, "DRUID", 1000, 1, false, false, 5, "guid"
-    end
-end
-function GuildRosterSetPublicNote(i, note)
-    MockData.updatedNotes[i] = note
-    if MockData.guildMembers[i] then
-        MockData.guildMembers[i].note = note
+        return m.name, "Member", 1, 80, "Druid", "Zone", m.note, "", true, 0, "DRUID", 1000, 1, false, false, 5, m.guid
     end
 end
 function IsInGuild() return true end
@@ -144,7 +138,18 @@ C_Timer = {
         return timer
     end,
 }
-C_GuildInfo = { GuildRoster = function() end }
+C_GuildInfo = {
+    GuildRoster = function() end,
+    SetNote = function(guid, note, isPublic)
+        for i, m in ipairs(MockData.guildMembers) do
+            if m.guid == guid then
+                MockData.updatedNotes[i] = note
+                m.note = note
+                return
+            end
+        end
+    end,
+}
 SlashCmdList = {}
 
 -- GameTooltip mock

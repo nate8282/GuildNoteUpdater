@@ -350,10 +350,13 @@ function GuildNoteUpdater:UpdateGuildNote()
     local guildIndex = self:GetGuildIndexForPlayer()
     if guildIndex then
         if self.previousNote ~= newNote then
-            self:DebugPrint("Updating guild note to: " .. newNote)
-            GuildRosterSetPublicNote(guildIndex, newNote)
-            self.previousNote = newNote
-            self:ShowUpdateConfirmation(newNote)
+            local _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, guid = GetGuildRosterInfo(guildIndex)
+            if guid then
+                self:DebugPrint("Updating guild note to: " .. newNote)
+                C_GuildInfo.SetNote(guid, newNote, true)
+                self.previousNote = newNote
+                self:ShowUpdateConfirmation(newNote)
+            end
         else
             self:DebugPrint("Note unchanged, skipping update")
         end

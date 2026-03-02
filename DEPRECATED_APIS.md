@@ -38,6 +38,35 @@ end)
 
 ---
 
+### `GuildRosterSetPublicNote(index, note)`
+
+| Field | Detail |
+|---|---|
+| **Removed in** | WoW Retail 12.0.0 (Midnight) |
+| **In-game error** | `attempt to call global 'GuildRosterSetPublicNote' (a nil value)` |
+| **Discovered** | v1.14.1, reported on Patch 12.0.1 |
+
+**Old code (DO NOT USE):**
+```lua
+GuildRosterSetPublicNote(guildIndex, newNote)
+```
+
+**Replacement:** `C_GuildInfo.SetNote(guid, note, isPublic)`
+```lua
+local _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, guid = GetGuildRosterInfo(guildIndex)
+if guid then
+    C_GuildInfo.SetNote(guid, newNote, true)  -- true = public note
+end
+```
+
+**Notes:**
+- New API takes a player GUID (17th return value of `GetGuildRosterInfo`) instead of a roster index
+- `C_GuildInfo` was already in `.luacheckrc` read_globals — no change needed there
+- `GuildRosterSetPublicNote` must be removed from `.luacheckrc` read_globals
+- Update mock: add `guid` field to mock guild members, add `C_GuildInfo.SetNote` stub
+
+---
+
 ## Workflow
 
 When discovering a new deprecated/removed API:
